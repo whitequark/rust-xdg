@@ -1,0 +1,9 @@
+[package]
+name = "xdg"
+version = "0.1.0"
+authors = [
+    "Ben Longbons <b.r.longbons@gmail.com>"
+]
+
+[[lib]]
+name = "xdg"
