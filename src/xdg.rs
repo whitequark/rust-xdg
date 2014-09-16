@@ -1,5 +1,6 @@
 use std::path::BytesContainer;
 use std::io;
+use std::io::fs::PathExtensions;
 
 pub struct XdgDirs
 {
@@ -253,7 +254,7 @@ fn test_bad_environment()
             ("XDG_CONFIG_DIRS", "test_files/user/config"),
             // ("XDG_RUNTIME_DIR", "test_files/runtime-bad"),
         ].iter().map(|&(k, v)| (k.to_string(), v.to_string())).collect();
-    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_owned()));
+    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
     assert_eq!(xd.want_read_data("everywhere").map(|p| p.as_str().unwrap().to_string()), None);
     assert_eq!(xd.want_read_config("everywhere").map(|p| p.as_str().unwrap().to_string()), None);
     assert_eq!(xd.want_read_cache("everywhere").map(|p| p.as_str().unwrap().to_string()), None);
@@ -276,7 +277,7 @@ fn test_good_environment()
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
             //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ].iter().map(|&(ref k, ref v)| (k.to_string(), v.clone())).collect();
-    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_owned()));
+    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
     assert!(xd.want_read_data("everywhere").map(|p| p.as_str().unwrap().to_string()) != None);
     assert!(xd.want_read_config("everywhere").map(|p| p.as_str().unwrap().to_string()) != None);
     assert!(xd.want_read_cache("everywhere").map(|p| p.as_str().unwrap().to_string()) != None);
@@ -286,7 +287,7 @@ fn test_good_environment()
 fn test_runtime_bad()
 {
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad"));
-    let test_runtime_dir = test_runtime_dir.as_vec().to_owned();
+    let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
     std::task::try(
         proc()
         {
@@ -303,7 +304,7 @@ fn test_runtime_good()
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-good"));
     let _ = io::fs::rmdir_recursive(&test_runtime_dir);
     io::fs::mkdir_recursive(&test_runtime_dir, io::UserRWX).unwrap();
-    let test_runtime_dir = test_runtime_dir.as_vec().to_owned();
+    let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
     let xd = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
     xd.need_mkdir_runtime("foo");
     assert!(Path::new("test_files/runtime-good/foo").is_dir());
@@ -342,7 +343,7 @@ fn test_lists()
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
             //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ].iter().map(|&(ref k, ref v)| (k.to_string(), v.clone())).collect();
-    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_owned()));
+    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
 
     let files: Vec<Path> = xd.want_list_config_all(".");
     let mut files: Vec<String> = files.move_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();

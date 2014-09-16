@@ -5,5 +5,5 @@ authors = [
     "Ben Longbons <b.r.longbons@gmail.com>"
 ]
 
-[[lib]]
+[lib]
 name = "xdg"
