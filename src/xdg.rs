@@ -47,7 +47,7 @@ impl XdgDirs
                     }
                     Ok(stat_buf) =>
                     {
-                        if stat_buf.perm.intersects(io::GroupRWX | io::OtherRWX)
+                        if stat_buf.perm.intersects(io::GROUP_RWX | io::OTHER_RWX)
                         {
                             fail!("Panic! $XDG_RUNTIME_DIR is insecure - should have permissions 0700!");
                         }
@@ -168,7 +168,7 @@ fn getenv_many(env: |&str| -> Option<Vec<u8>>, var: &str) -> Option<Vec<Path>>
 {
     let val = env(var).unwrap_or(Vec::new());
     let paths = std::os::split_paths(val);
-    let paths: Vec<Path> = paths.move_iter().filter(|p| p.is_absolute()).collect();
+    let paths: Vec<Path> = paths.into_iter().filter(|p| p.is_absolute()).collect();
     if paths.is_empty()
     {
         None
@@ -184,14 +184,14 @@ fn want_write_file<B: BytesContainer + Copy>(home: &Path, b: B) -> Path
     let b = Path::new(b);
     let home = &home.join(b.dirname());
     let b = b.filename().unwrap();
-    std::io::fs::mkdir_recursive(home, io::UserRWX).unwrap();
+    std::io::fs::mkdir_recursive(home, io::USER_RWX).unwrap();
     home.join(b)
 }
 
 fn want_write_dir<B: BytesContainer + Copy>(home: &Path, b: B) -> Path
 {
     let joined = home.join(b);
-    std::io::fs::mkdir_recursive(&joined, io::UserRWX).unwrap();
+    std::io::fs::mkdir_recursive(&joined, io::USER_RWX).unwrap();
     joined
 }
 
@@ -229,7 +229,7 @@ fn want_list_file_once<B: BytesContainer + Copy>(home: &Path, dirs: &Vec<Path>, 
 
     let mut vec = want_list_file_all(home, dirs, b);
     let mut seen = HashSet::<String>::new();
-    vec = vec.move_iter().filter(|p| { let s = p.filename_str().to_string(); if seen.contains(&s) { return false; } seen.insert(s); return true; }).collect();
+    vec = vec.into_iter().filter(|p| { let s = p.filename_str().to_string(); if seen.contains(&s) { return false; } seen.insert(s); return true; }).collect();
     return vec;
 }
 
@@ -237,7 +237,7 @@ fn want_list_file_once<B: BytesContainer + Copy>(home: &Path, dirs: &Vec<Path>, 
 fn test_files_exists()
 {
     assert!(Path::new("test_files").exists());
-    assert!(Path::new("test_files/runtime-bad").stat().unwrap().perm.intersects(io::GroupRWX | io::OtherRWX));
+    assert!(Path::new("test_files/runtime-bad").stat().unwrap().perm.intersects(io::GROUP_RWX | io::OTHER_RWX));
 }
 
 #[test]
@@ -303,7 +303,7 @@ fn test_runtime_good()
 
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-good"));
     let _ = io::fs::rmdir_recursive(&test_runtime_dir);
-    io::fs::mkdir_recursive(&test_runtime_dir, io::UserRWX).unwrap();
+    io::fs::mkdir_recursive(&test_runtime_dir, io::USER_RWX).unwrap();
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
     let xd = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
     xd.need_mkdir_runtime("foo");
@@ -317,7 +317,7 @@ fn test_runtime_good()
     File::open(&w).unwrap();
     io::fs::unlink(&w).unwrap();
     let root: Vec<Path> = xd.need_list_runtime(".");
-    let mut root: Vec<String> = root.move_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
+    let mut root: Vec<String> = root.into_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
     root.sort();
     assert_eq!(root, vec!["test_files/runtime-good/bar".to_string(), "test_files/runtime-good/foo".to_string()]);
     assert!(xd.need_list_runtime("bar").is_empty());
@@ -346,7 +346,7 @@ fn test_lists()
     let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
 
     let files: Vec<Path> = xd.want_list_config_all(".");
-    let mut files: Vec<String> = files.move_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
+    let mut files: Vec<String> = files.into_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
     files.sort();
     let files = files;
     assert_eq!(files, [
@@ -361,7 +361,7 @@ fn test_lists()
     ].iter().map(|s| s.to_string()).collect());
 
     let files: Vec<Path> = xd.want_list_config_once(".");
-    let mut files: Vec<String> = files.move_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
+    let mut files: Vec<String> = files.into_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
     files.sort();
     let files = files;
     assert_eq!(files, [
