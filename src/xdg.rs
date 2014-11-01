@@ -24,7 +24,7 @@ impl XdgDirs
         let home = std::os::homedir().unwrap();
         if !home.exists()
         {
-            fail!("no homeless users allowed");
+            panic!("no homeless users allowed");
         }
 
         let data_home = getenv_one(|n: &str| env(n), "XDG_DATA_HOME").unwrap_or(home.join(".local/share"));
@@ -43,13 +43,13 @@ impl XdgDirs
                 {
                     Err(_) =>
                     {
-                        fail!("Panic! $XDG_RUNTIME_DIR is set but is not accessible!");
+                        panic!("Panic! $XDG_RUNTIME_DIR is set but is not accessible!");
                     }
                     Ok(stat_buf) =>
                     {
                         if stat_buf.perm.intersects(io::GROUP_RWX | io::OTHER_RWX)
                         {
-                            fail!("Panic! $XDG_RUNTIME_DIR is insecure - should have permissions 0700!");
+                            panic!("Panic! $XDG_RUNTIME_DIR is insecure - should have permissions 0700!");
                         }
                     }
                 }
@@ -58,7 +58,7 @@ impl XdgDirs
             {
                 if env("XDG_RUNTIME_DIR").is_some()
                 {
-                    fail!("Panic! $XDG_RUNTIME_DIR is set, but not absolute!");
+                    panic!("Panic! $XDG_RUNTIME_DIR is set, but not absolute!");
                 }
             }
         }
