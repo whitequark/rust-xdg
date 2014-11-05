@@ -225,7 +225,7 @@ fn want_list_file_all<B: BytesContainer + Copy>(home: &Path, dirs: &Vec<Path>, b
 
 fn want_list_file_once<B: BytesContainer + Copy>(home: &Path, dirs: &Vec<Path>, b: B) -> Vec<Path>
 {
-    use std::collections::hashmap::HashSet;
+    use std::collections::HashSet;
 
     let mut vec = want_list_file_all(home, dirs, b);
     let mut seen = HashSet::<String>::new();
@@ -243,7 +243,7 @@ fn test_files_exists()
 #[test]
 fn test_bad_environment()
 {
-    use std::collections::hashmap::HashMap;
+    use std::collections::HashMap;
 
     let map: HashMap<String, String> =
         [
@@ -263,7 +263,7 @@ fn test_bad_environment()
 #[test]
 fn test_good_environment()
 {
-    use std::collections::hashmap::HashMap;
+    use std::collections::HashMap;
 
     let cwd = std::os::make_absolute(&Path::new("."));
     let cwd = cwd.as_str().unwrap();
@@ -329,7 +329,7 @@ fn test_runtime_good()
 #[test]
 fn test_lists()
 {
-    use std::collections::hashmap::HashMap;
+    use std::collections::HashMap;
 
     let cwd = std::os::make_absolute(&Path::new("."));
     let cwd = cwd.as_str().unwrap();
