@@ -289,7 +289,7 @@ fn test_runtime_bad()
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad"));
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
     std::task::try(
-        proc()
+        move ||
         {
             let _ = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
         }
