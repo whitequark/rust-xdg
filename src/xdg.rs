@@ -254,7 +254,7 @@ fn test_bad_environment()
             ("XDG_CONFIG_DIRS", "test_files/user/config"),
             // ("XDG_RUNTIME_DIR", "test_files/runtime-bad"),
         ].iter().map(|&(k, v)| (k.to_string(), v.to_string())).collect();
-    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
+    let xd = XdgDirs::new_with_env(|v| map.get(&v.to_string()).map(|s| s.as_bytes().to_vec()));
     assert_eq!(xd.want_read_data("everywhere").map(|p| p.as_str().unwrap().to_string()), None);
     assert_eq!(xd.want_read_config("everywhere").map(|p| p.as_str().unwrap().to_string()), None);
     assert_eq!(xd.want_read_cache("everywhere").map(|p| p.as_str().unwrap().to_string()), None);
@@ -265,7 +265,7 @@ fn test_good_environment()
 {
     use std::collections::HashMap;
 
-    let cwd = std::os::make_absolute(&Path::new("."));
+    let cwd = std::os::make_absolute(&Path::new(".")).unwrap();
     let cwd = cwd.as_str().unwrap();
 
     let map: HashMap<String, String> =
@@ -277,7 +277,7 @@ fn test_good_environment()
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
             //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ].iter().map(|&(ref k, ref v)| (k.to_string(), v.clone())).collect();
-    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
+    let xd = XdgDirs::new_with_env(|v| map.get(&v.to_string()).map(|s| s.as_bytes().to_vec()));
     assert!(xd.want_read_data("everywhere").map(|p| p.as_str().unwrap().to_string()) != None);
     assert!(xd.want_read_config("everywhere").map(|p| p.as_str().unwrap().to_string()) != None);
     assert!(xd.want_read_cache("everywhere").map(|p| p.as_str().unwrap().to_string()) != None);
@@ -286,10 +286,10 @@ fn test_good_environment()
 #[test]
 fn test_runtime_bad()
 {
-    let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad"));
+    let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad")).unwrap();
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
     std::task::try(
-        proc()
+        move ||
         {
             let _ = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
         }
@@ -301,7 +301,7 @@ fn test_runtime_good()
 {
     use std::io::fs::File;
 
-    let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-good"));
+    let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-good")).unwrap();
     let _ = io::fs::rmdir_recursive(&test_runtime_dir);
     io::fs::mkdir_recursive(&test_runtime_dir, io::USER_RWX).unwrap();
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
@@ -331,7 +331,7 @@ fn test_lists()
 {
     use std::collections::HashMap;
 
-    let cwd = std::os::make_absolute(&Path::new("."));
+    let cwd = std::os::make_absolute(&Path::new(".")).unwrap();
     let cwd = cwd.as_str().unwrap();
 
     let map: HashMap<String, String> =
@@ -343,13 +343,13 @@ fn test_lists()
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
             //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ].iter().map(|&(ref k, ref v)| (k.to_string(), v.clone())).collect();
-    let xd = XdgDirs::new_with_env(|v| map.find(&v.to_string()).map(|s| s.as_bytes().to_vec()));
+    let xd = XdgDirs::new_with_env(|v| map.get(&v.to_string()).map(|s| s.as_bytes().to_vec()));
 
     let files: Vec<Path> = xd.want_list_config_all(".");
     let mut files: Vec<String> = files.into_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
     files.sort();
     let files = files;
-    assert_eq!(files, [
+    assert_eq!(files, vec![
                "test_files/system1/config/both_system_config.file",
                "test_files/system1/config/everywhere",
                "test_files/system1/config/system1_config.file",
@@ -358,25 +358,25 @@ fn test_lists()
                "test_files/system2/config/system2_config.file",
                "test_files/user/config/everywhere",
                "test_files/user/config/user_config.file",
-    ].iter().map(|s| s.to_string()).collect());
+    ]);
 
     let files: Vec<Path> = xd.want_list_config_once(".");
     let mut files: Vec<String> = files.into_iter().map(|p| make_relative(&p).as_str().unwrap().to_string()).collect();
     files.sort();
     let files = files;
-    assert_eq!(files, [
+    assert_eq!(files, vec![
                "test_files/system1/config/both_system_config.file",
                "test_files/system1/config/system1_config.file",
                "test_files/system2/config/system2_config.file",
                "test_files/user/config/everywhere",
                "test_files/user/config/user_config.file",
-    ].iter().map(|s| s.to_string()).collect());
+    ]);
 }
 
 #[cfg(test)]
 fn make_relative(p: &Path) -> Path
 {
     let cwd = Path::new(".");
-    let cwd = std::os::make_absolute(&cwd);
+    let cwd = std::os::make_absolute(&cwd).unwrap();
     p.path_relative_from(&cwd).unwrap()
 }
