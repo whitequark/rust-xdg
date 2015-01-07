@@ -19,7 +19,7 @@ impl XdgDirs
         XdgDirs::new_with_env(std::os::getenv_as_bytes)
     }
 
-    fn new_with_env(env: |&str| -> Option<Vec<u8>>) -> XdgDirs
+    fn new_with_env<F: Fn(&str) -> Option<Vec<u8>>>(env: F) -> XdgDirs
     {
         let home = std::os::homedir().unwrap();
         if !home.exists()
@@ -27,12 +27,12 @@ impl XdgDirs
             panic!("no homeless users allowed");
         }
 
-        let data_home = getenv_one(|n: &str| env(n), "XDG_DATA_HOME").unwrap_or(home.join(".local/share"));
-        let config_home = getenv_one(|n: &str| env(n), "XDG_CONFIG_HOME").unwrap_or(home.join(".config"));
-        let cache_home = getenv_one(|n: &str| env(n), "XDG_CACHE_HOME").unwrap_or(home.join(".cache"));
-        let data_dirs = getenv_many(|n: &str| env(n), "XDG_DATA_DIRS").unwrap_or(vec![Path::new("/usr/local/share"), Path::new("/usr/share")]);
-        let config_dirs = getenv_many(|n: &str| env(n), "XDG_CONFIG_DIRS").unwrap_or(vec![Path::new("/etc/xdg")]);
-        let runtime_dir = getenv_one(|n: &str| env(n), "XDG_RUNTIME_DIR"); // optional
+        let data_home = getenv_one(|&: n: &str| env(n), "XDG_DATA_HOME").unwrap_or(home.join(".local/share"));
+        let config_home = getenv_one(|&: n: &str| env(n), "XDG_CONFIG_HOME").unwrap_or(home.join(".config"));
+        let cache_home = getenv_one(|&: n: &str| env(n), "XDG_CACHE_HOME").unwrap_or(home.join(".cache"));
+        let data_dirs = getenv_many(|&: n: &str| env(n), "XDG_DATA_DIRS").unwrap_or(vec![Path::new("/usr/local/share"), Path::new("/usr/share")]);
+        let config_dirs = getenv_many(|&: n: &str| env(n), "XDG_CONFIG_DIRS").unwrap_or(vec![Path::new("/etc/xdg")]);
+        let runtime_dir = getenv_one(|&: n: &str| env(n), "XDG_RUNTIME_DIR"); // optional
         match runtime_dir
         {
             // If XDG_RUNTIME_DIR is in the environment but not secure,
@@ -150,7 +150,7 @@ impl XdgDirs
     }
 }
 
-fn getenv_one(env: |&str| -> Option<Vec<u8>>, var: &str) -> Option<Path>
+fn getenv_one<F: Fn(&str) -> Option<Vec<u8>>>(env: F, var: &str) -> Option<Path>
 {
     let val = env(var).unwrap_or(Vec::new());
     let path = Path::new(val);
@@ -164,7 +164,7 @@ fn getenv_one(env: |&str| -> Option<Vec<u8>>, var: &str) -> Option<Path>
     }
 }
 
-fn getenv_many(env: |&str| -> Option<Vec<u8>>, var: &str) -> Option<Vec<Path>>
+fn getenv_many<F: Fn(&str) -> Option<Vec<u8>>>(env: F, var: &str) -> Option<Vec<Path>>
 {
     let val = env(var).unwrap_or(Vec::new());
     let paths = std::os::split_paths(val);
@@ -288,12 +288,12 @@ fn test_runtime_bad()
 {
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad")).unwrap();
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
-    std::task::try(
+    std::thread::Thread::spawn(
         move ||
         {
             let _ = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
         }
-    ).unwrap_err();
+    ).join().unwrap_err();
 }
 
 #[test]
