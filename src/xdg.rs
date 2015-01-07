@@ -288,12 +288,12 @@ fn test_runtime_bad()
 {
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad")).unwrap();
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
-    std::task::try(
+    std::thread::Thread::spawn(
         move ||
         {
             let _ = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
         }
-    ).unwrap_err();
+    ).join().unwrap_err();
 }
 
 #[test]
