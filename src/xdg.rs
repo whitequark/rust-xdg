@@ -1,3 +1,5 @@
+#![allow(unstable)]
+
 use std::path::BytesContainer;
 use std::io;
 use std::io::fs::PathExtensions;
@@ -229,7 +231,18 @@ fn want_list_file_once<B: BytesContainer + Copy>(home: &Path, dirs: &Vec<Path>, 
 
     let mut vec = want_list_file_all(home, dirs, b);
     let mut seen = HashSet::<String>::new();
-    vec = vec.into_iter().filter(|p| { let s = p.filename_str().to_string(); if seen.contains(&s) { return false; } seen.insert(s); return true; }).collect();
+    vec = vec.into_iter().filter(|p| match p.filename_str() {
+        None => false,
+        Some(p) => {
+            let s = p.to_string();
+            if seen.contains(&s) {
+                false
+            } else {
+                seen.insert(s);
+                true
+            }
+        }
+    }).collect();
     return vec;
 }
 
@@ -288,7 +301,7 @@ fn test_runtime_bad()
 {
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-bad")).unwrap();
     let test_runtime_dir = test_runtime_dir.as_vec().to_vec();
-    std::thread::Thread::spawn(
+    std::thread::Thread::scoped(
         move ||
         {
             let _ = XdgDirs::new_with_env(|v| if v == "XDG_RUNTIME_DIR" { Some(test_runtime_dir.clone()) } else { None });
