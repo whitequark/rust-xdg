@@ -1,8 +1,8 @@
-#![allow(unstable)]
+#![feature(collections, path, core, io, os)]
 
 use std::path::BytesContainer;
-use std::io;
-use std::io::fs::PathExtensions;
+use std::old_io as io;
+use std::old_io::fs::PathExtensions;
 
 pub struct XdgDirs
 {
@@ -186,14 +186,14 @@ fn want_write_file<B: BytesContainer + Copy>(home: &Path, b: B) -> Path
     let b = Path::new(b);
     let home = &home.join(b.dirname());
     let b = b.filename().unwrap();
-    std::io::fs::mkdir_recursive(home, io::USER_RWX).unwrap();
+    io::fs::mkdir_recursive(home, io::USER_RWX).unwrap();
     home.join(b)
 }
 
 fn want_write_dir<B: BytesContainer + Copy>(home: &Path, b: B) -> Path
 {
     let joined = home.join(b);
-    std::io::fs::mkdir_recursive(&joined, io::USER_RWX).unwrap();
+    io::fs::mkdir_recursive(&joined, io::USER_RWX).unwrap();
     joined
 }
 
@@ -312,7 +312,8 @@ fn test_runtime_bad()
 #[test]
 fn test_runtime_good()
 {
-    use std::io::fs::File;
+    use std::old_io::fs::File;
+    use std::old_io as io;
 
     let test_runtime_dir = std::os::make_absolute(&Path::new("test_files/runtime-good")).unwrap();
     let _ = io::fs::rmdir_recursive(&test_runtime_dir);
