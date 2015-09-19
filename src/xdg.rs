@@ -43,11 +43,11 @@ impl XdgDirs
             Some(ref p) => {
                 match p.stat() {
                     Err(_) => {
-                        panic!("Panic! $XDG_RUNTIME_DIR is set but is not accessible!");
+                        panic!("$XDG_RUNTIME_DIR is set but is not accessible!");
                     }
                     Ok(stat_buf) => {
                         if stat_buf.perm.intersects(io::GROUP_RWX | io::OTHER_RWX) {
-                            panic!("Panic! $XDG_RUNTIME_DIR is insecure - should have \
+                            panic!("$XDG_RUNTIME_DIR is insecure - should have \
                                     permissions 0700!");
                         }
                     }
@@ -55,7 +55,7 @@ impl XdgDirs
             }
             None => {
                 if env("XDG_RUNTIME_DIR").is_some() {
-                    panic!("Panic! $XDG_RUNTIME_DIR is set, but not absolute!");
+                    panic!("$XDG_RUNTIME_DIR is set, but not absolute!");
                 }
             }
         }
