@@ -69,22 +69,15 @@ impl XdgDirs
 
         // If XDG_RUNTIME_DIR is in the environment but not secure,
         // do not allow recovery.
-        match runtime_dir {
-            Some(ref p) => {
-                match p.metadata() {
-                    Err(_) => {
-                        panic!("$XDG_RUNTIME_DIR must be accessible by the current user");
-                    }
-                    Ok(metadata) => {
-                        if metadata.permissions().mode() & 0o077 != 0 {
-                            panic!("$XDG_RUNTIME_DIR must be secure: have permissions 0700");
-                        }
-                    }
+        if let Some(ref runtime_dir) = runtime_dir {
+            match runtime_dir.metadata() {
+                Err(_) => {
+                    panic!("$XDG_RUNTIME_DIR must be accessible by the current user");
                 }
-            }
-            None => {
-                if env_var("XDG_RUNTIME_DIR").is_ok() {
-                    panic!("$XDG_RUNTIME_DIR must be absolute");
+                Ok(metadata) => {
+                    if metadata.permissions().mode() & 0o077 != 0 {
+                        panic!("$XDG_RUNTIME_DIR must be secure: have permissions 0700");
+                    }
                 }
             }
         }
