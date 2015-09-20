@@ -38,7 +38,7 @@ To retrieve supplementary data:
 
 ```rust
 let logo_path = xdg_dirs.find_config_file("myapp/logo.png")
-                          .expect("application data not present");
+                        .expect("application data not present");
 let mut logo_file = try!(File::open(logo_path));
 let mut logo = Vec::new();
 try!(logo_file.read_to_end(&mut logo));
