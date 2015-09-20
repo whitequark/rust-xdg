@@ -2,7 +2,8 @@
 name = "xdg"
 version = "0.1.0"
 authors = [
-    "Ben Longbons <b.r.longbons@gmail.com>"
+    "Ben Longbons <b.r.longbons@gmail.com>",
+    "whitequark <whitequark@whitequark.org>"
 ]
 
 [lib]
