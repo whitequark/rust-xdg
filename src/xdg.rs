@@ -98,65 +98,66 @@ impl XdgDirs
         }
     }
 
-    pub fn want_write_data<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_file(&self.data_home, path)
+    pub fn place_data_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        write_file(&self.data_home, path)
     }
-    pub fn want_write_config<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_file(&self.config_home, path)
+    pub fn place_config_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        write_file(&self.config_home, path)
     }
-    pub fn want_write_cache<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_file(&self.cache_home, path)
+    pub fn place_cache_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        write_file(&self.cache_home, path)
     }
-    pub fn need_write_runtime<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_file(self.runtime_dir.as_ref().unwrap(), path)
-    }
-    pub fn want_mkdir_data<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_dir(&self.data_home, path)
-    }
-    pub fn want_mkdir_config<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_dir(&self.config_home, path)
-    }
-    pub fn want_mkdir_cache<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_dir(&self.cache_home, path)
-    }
-    pub fn need_mkdir_runtime<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        want_write_dir(self.runtime_dir.as_ref().unwrap(), path)
+    pub fn place_runtime_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        write_file(self.runtime_dir.as_ref().unwrap(), path)
     }
 
-    pub fn want_read_data<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
-        want_read_file(&self.data_home, &self.data_dirs, path)
+    pub fn find_data_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+        read_file(&self.data_home, &self.data_dirs, path)
     }
-    pub fn want_read_config<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
-        want_read_file(&self.config_home, &self.config_dirs, path)
+    pub fn find_config_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+        read_file(&self.config_home, &self.config_dirs, path)
     }
-    pub fn want_read_cache<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
-        want_read_file(&self.cache_home, &Vec::new(), path)
+    pub fn find_cache_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+        read_file(&self.cache_home, &Vec::new(), path)
     }
-    pub fn need_read_runtime<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
-        want_read_file(self.runtime_dir.as_ref().unwrap(), &Vec::new(), path)
+    pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+        read_file(self.runtime_dir.as_ref().unwrap(), &Vec::new(), path)
     }
 
-    pub fn want_list_data_all<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        want_list_file_all(&self.data_home, &self.data_dirs, path)
+    pub fn create_data_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        create_directory(&self.data_home, path)
     }
-    pub fn want_list_config_all<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        want_list_file_all(&self.config_home, &self.config_dirs, path)
+    pub fn create_config_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        create_directory(&self.config_home, path)
     }
-    pub fn want_list_data_once<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        want_list_file_once(&self.data_home, &self.data_dirs, path)
+    pub fn create_cache_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        create_directory(&self.cache_home, path)
     }
-    pub fn want_list_config_once<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        want_list_file_once(&self.config_home, &self.config_dirs, path)
+    pub fn create_runtime_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+        create_directory(self.runtime_dir.as_ref().unwrap(), path)
     }
-    pub fn want_list_cache<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        want_list_file_all(&self.cache_home, &Vec::new(), path)
+
+    pub fn list_data_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+        list_files(&self.data_home, &self.data_dirs, path)
     }
-    pub fn need_list_runtime<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        want_list_file_all(self.runtime_dir.as_ref().unwrap(), &Vec::new(), path)
+    pub fn list_data_files_once<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+        list_files_once(&self.data_home, &self.data_dirs, path)
+    }
+    pub fn list_config_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+        list_files(&self.config_home, &self.config_dirs, path)
+    }
+    pub fn list_config_files_once<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+        list_files_once(&self.config_home, &self.config_dirs, path)
+    }
+    pub fn list_cache_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+        list_files(&self.cache_home, &Vec::new(), path)
+    }
+    pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+        list_files(self.runtime_dir.as_ref().unwrap(), &Vec::new(), path)
     }
 }
 
-fn want_write_file<P>(home: &Path, path: P) -> PathBuf
+fn write_file<P>(home: &Path, path: P) -> PathBuf
         where P: AsRef<Path> {
     match path.as_ref().parent() {
         Some(parent) => fs::create_dir_all(home.join(parent)).unwrap(),
@@ -165,14 +166,14 @@ fn want_write_file<P>(home: &Path, path: P) -> PathBuf
     PathBuf::from(home.join(path.as_ref()))
 }
 
-fn want_write_dir<P>(home: &Path, path: P) -> PathBuf
+fn create_directory<P>(home: &Path, path: P) -> PathBuf
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
     fs::create_dir_all(&full_path).unwrap();
     full_path
 }
 
-fn want_read_file<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
+fn read_file<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
     if full_path.exists() {
@@ -187,7 +188,7 @@ fn want_read_file<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Option<PathBu
     None
 }
 
-fn want_list_file_all<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
+fn list_files<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
         where P: AsRef<Path> {
     [home.join(path.as_ref())].iter()
         .chain(dirs.iter())
@@ -201,10 +202,10 @@ fn want_list_file_all<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Vec<PathB
         .fold(vec![], |mut accum, paths| { accum.extend(paths); accum })
 }
 
-fn want_list_file_once<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
+fn list_files_once<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
         where P: AsRef<Path> {
     let mut seen = std::collections::HashSet::new();
-    want_list_file_all(home, dirs, path).into_iter().filter(|path| {
+    list_files(home, dirs, path).into_iter().filter(|path| {
         match path.clone().file_name() {
             None => false,
             Some(filename) => {
@@ -255,11 +256,11 @@ fn test_bad_environment() {
             ("XDG_CACHE_HOME", "test_files/user/cache".to_string()),
             ("XDG_DATA_DIRS", "test_files/user/data".to_string()),
             ("XDG_CONFIG_DIRS", "test_files/user/config".to_string()),
-            // ("XDG_RUNTIME_DIR", "test_files/runtime-bad")
+            // ("XDG_RUNTIME_DIR", "test_files/runtime-bad".to_string())
         ]));
-    assert_eq!(xd.want_read_data("everywhere"), None);
-    assert_eq!(xd.want_read_config("everywhere"), None);
-    assert_eq!(xd.want_read_cache("everywhere"), None);
+    assert_eq!(xd.find_data_file("everywhere"), None);
+    assert_eq!(xd.find_config_file("everywhere"), None);
+    assert_eq!(xd.find_cache_file("everywhere"), None);
 }
 
 #[test]
@@ -273,9 +274,9 @@ fn test_good_environment() {
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
             //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ]));
-    assert!(xd.want_read_data("everywhere") != None);
-    assert!(xd.want_read_config("everywhere") != None);
-    assert!(xd.want_read_cache("everywhere") != None);
+    assert!(xd.find_data_file("everywhere") != None);
+    assert!(xd.find_config_file("everywhere") != None);
+    assert!(xd.find_cache_file("everywhere") != None);
 }
 
 #[test]
@@ -311,25 +312,25 @@ fn test_runtime_good() {
             Err(env::VarError::NotPresent)
         }
     });
-    xd.need_mkdir_runtime("foo");
+    xd.create_runtime_directory("foo");
     assert!(Path::new("test_files/runtime-good/foo").is_dir());
-    let w = xd.need_write_runtime("bar/baz");
+    let w = xd.place_runtime_file("bar/baz");
     assert!(Path::new("test_files/runtime-good/bar").is_dir());
     assert!(!Path::new("test_files/runtime-good/bar/baz").exists());
     File::create(&w).unwrap();
     assert!(Path::new("test_files/runtime-good/bar/baz").exists());
-    assert!(xd.need_read_runtime("bar/baz") == Some(w.clone()));
+    assert!(xd.find_runtime_file("bar/baz") == Some(w.clone()));
     File::open(&w).unwrap();
     fs::remove_file(&w).unwrap();
-    let root = xd.need_list_runtime(".");
+    let root = xd.list_runtime_files(".");
     let mut root = root.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
     root.sort();
     assert_eq!(root,
                vec![PathBuf::from("test_files/runtime-good/bar"),
                     PathBuf::from("test_files/runtime-good/foo")]);
-    assert!(xd.need_list_runtime("bar").is_empty());
-    assert!(xd.need_read_runtime("foo/qux").is_none());
-    assert!(xd.need_read_runtime("qux/foo").is_none());
+    assert!(xd.list_runtime_files("bar").is_empty());
+    assert!(xd.find_runtime_file("foo/qux").is_none());
+    assert!(xd.find_runtime_file("qux/foo").is_none());
     assert!(!Path::new("test_files/runtime-good/qux").exists());
 }
 
@@ -345,7 +346,7 @@ fn test_lists() {
             //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ]));
 
-    let files = xd.want_list_config_all(".");
+    let files = xd.list_config_files(".");
     let mut files = files.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
     files.sort();
     assert_eq!(files,
@@ -360,7 +361,7 @@ fn test_lists() {
             "test_files/user/config/user_config.file",
         ].iter().map(PathBuf::from).collect::<Vec<_>>());
 
-    let files = xd.want_list_config_once(".");
+    let files = xd.list_config_files_once(".");
     let mut files = files.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
     files.sort();
     assert_eq!(files,
