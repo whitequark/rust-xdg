@@ -23,7 +23,7 @@ To store configuration:
 
 ```rust
 extern crate xdg;
-let xdg_dirs = xdg::XdgDirs::new();
+let xdg_dirs = xdg::BaseDirectories::new();
 
 let config_path = xdg_dirs.place_config_file("myapp/config.ini")
                           .expect("cannot create configuration directory");

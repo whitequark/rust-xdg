@@ -8,7 +8,7 @@ use std::io::Result as IoResult;
 use std::fs::PathExt;
 use std::os::unix::fs::PermissionsExt;
 
-pub struct XdgDirs {
+pub struct BaseDirectories {
     data_home: PathBuf,
     config_home: PathBuf,
     cache_home: PathBuf,
@@ -17,13 +17,13 @@ pub struct XdgDirs {
     runtime_dir: Option<PathBuf>,
 }
 
-impl XdgDirs
+impl BaseDirectories
 {
-    pub fn new() -> XdgDirs {
-        XdgDirs::new_with_env(&|name| env::var(name))
+    pub fn new() -> BaseDirectories {
+        BaseDirectories::new_with_env(&|name| env::var(name))
     }
 
-    fn new_with_env<T: ?Sized>(env_var: &T) -> XdgDirs
+    fn new_with_env<T: ?Sized>(env_var: &T) -> BaseDirectories
             where T: Fn(&str) -> Result<String, env::VarError> {
         fn abspath(path: String) -> Option<PathBuf> {
             let path = PathBuf::from(path);
@@ -82,7 +82,7 @@ impl XdgDirs
             }
         }
 
-        XdgDirs {
+        BaseDirectories {
             data_home: data_home,
             config_home: config_home,
             cache_home: cache_home,
@@ -269,7 +269,7 @@ fn test_files_exists() {
 
 #[test]
 fn test_bad_environment() {
-    let xd = XdgDirs::new_with_env(&*make_env(vec![
+    let xd = BaseDirectories::new_with_env(&*make_env(vec![
             ("XDG_DATA_HOME", "test_files/user/data".to_string()),
             ("XDG_CONFIG_HOME", "test_files/user/config".to_string()),
             ("XDG_CACHE_HOME", "test_files/user/cache".to_string()),
@@ -285,7 +285,7 @@ fn test_bad_environment() {
 #[test]
 fn test_good_environment() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = XdgDirs::new_with_env(&*make_env(vec![
+    let xd = BaseDirectories::new_with_env(&*make_env(vec![
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
@@ -302,7 +302,7 @@ fn test_good_environment() {
 fn test_runtime_bad() {
     let test_runtime_dir = make_absolute(&"test_files/runtime-bad");
     std::thread::spawn(move || {
-        let _ = XdgDirs::new_with_env(&|v| {
+        let _ = BaseDirectories::new_with_env(&|v| {
             if v == "XDG_RUNTIME_DIR" {
                 Ok(test_runtime_dir.to_string_lossy().into_owned())
             } else {
@@ -324,7 +324,7 @@ fn test_runtime_good() {
     perms.set_mode(0o700);
     fs::set_permissions(&test_runtime_dir, perms).unwrap();
 
-    let xd = XdgDirs::new_with_env(&|v| {
+    let xd = BaseDirectories::new_with_env(&|v| {
         if v == "XDG_RUNTIME_DIR" {
             Ok(test_runtime_dir.to_string_lossy().into_owned())
         } else {
@@ -356,7 +356,7 @@ fn test_runtime_good() {
 #[test]
 fn test_lists() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = XdgDirs::new_with_env(&*make_env(vec![
+    let xd = BaseDirectories::new_with_env(&*make_env(vec![
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
