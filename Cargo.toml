@@ -1,6 +1,12 @@
 [package]
 name = "xdg"
 version = "1.0.0"
+description = "A library for querying locations of XDG Base Directories"
+homepage = "https://github.com/whitequark/rust-xdg"
+repository = "https://github.com/whitequark/rust-xdg"
+readme = "README.md"
+keywords = ["linux", ]
+license = "Apache-2.0/MIT"
 authors = [
     "Ben Longbons <b.r.longbons@gmail.com>",
     "whitequark <whitequark@whitequark.org>"
