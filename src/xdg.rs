@@ -98,6 +98,13 @@ impl XdgDirs
         }
     }
 
+    pub fn has_runtime_dir(&self) -> bool {
+        self.runtime_dir.is_some()
+    }
+    pub fn get_runtime_dir(&self) -> &Path {
+        self.runtime_dir.as_ref().expect("$XDG_RUNTIME_DIR must be set")
+    }
+
     pub fn place_data_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
         write_file(&self.data_home, path)
     }
@@ -121,7 +128,7 @@ impl XdgDirs
         read_file(&self.cache_home, &Vec::new(), path)
     }
     pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
-        read_file(self.runtime_dir.as_ref().unwrap(), &Vec::new(), path)
+        read_file(self.get_runtime_dir(), &Vec::new(), path)
     }
 
     pub fn create_data_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
@@ -134,7 +141,7 @@ impl XdgDirs
         create_directory(&self.cache_home, path)
     }
     pub fn create_runtime_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
-        create_directory(self.runtime_dir.as_ref().unwrap(), path)
+        create_directory(self.get_runtime_dir(), path)
     }
 
     pub fn list_data_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
@@ -153,7 +160,7 @@ impl XdgDirs
         list_files(&self.cache_home, &Vec::new(), path)
     }
     pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
-        list_files(self.runtime_dir.as_ref().unwrap(), &Vec::new(), path)
+        list_files(self.get_runtime_dir(), &Vec::new(), path)
     }
 }
 
