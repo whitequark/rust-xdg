@@ -25,8 +25,9 @@ To store configuration:
 extern crate xdg;
 let xdg_dirs = xdg::XdgDirs::new();
 
-let mut file = try!(File::create(xdg_dirs.place_config_file("myapp/config.ini")));
-try!(write!(&mut file, "configured = 1"));
+let config_path = xdg_dirs.place_config_file("myapp/config.ini");
+let mut config_file = try!(File::create(config_path));
+try!(write!(&mut config_file, "configured = 1"));
 ```
 
 The `myapp.ini` file will appear in the proper location for desktop
@@ -36,11 +37,11 @@ The leading directories will be automatically created.
 To retrieve supplementary data:
 
 ```rust
-let config_path = xdg_dirs.find_config_file("myapp/logo.png")
+let logo_path = xdg_dirs.find_config_file("myapp/logo.png")
                           .expect("application data not present");
-let mut file = try!(File::open(config_path));
-let mut data = String::new();
-try!(file.read_to_string(&mut data));
+let mut logo_file = try!(File::open(logo_path));
+let mut logo = Vec::new();
+try!(logo_file.read_to_end(&mut logo));
 ```
 
 The `logo.png` will be searched in the proper locations for
