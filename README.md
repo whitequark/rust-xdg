@@ -25,12 +25,13 @@ To store configuration:
 extern crate xdg;
 let xdg_dirs = xdg::XdgDirs::new();
 
-let config_path = xdg_dirs.place_config_file("myapp/config.ini");
+let config_path = xdg_dirs.place_config_file("myapp/config.ini")
+                          .expect("cannot create configuration directory");
 let mut config_file = try!(File::create(config_path));
 try!(write!(&mut config_file, "configured = 1"));
 ```
 
-The `myapp.ini` file will appear in the proper location for desktop
+The `config.ini` file will appear in the proper location for desktop
 configuration files, most likely `~/.config/myapp/config.ini`.
 The leading directories will be automatically created.
 

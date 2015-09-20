@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
+use std::io::Result as IoResult;
 
 use std::fs::PathExt;
 use std::os::unix::fs::PermissionsExt;
@@ -105,91 +106,109 @@ impl XdgDirs
         self.runtime_dir.as_ref().expect("$XDG_RUNTIME_DIR must be set")
     }
 
-    pub fn place_data_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn place_data_file<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         write_file(&self.data_home, path)
     }
-    pub fn place_config_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn place_config_file<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         write_file(&self.config_home, path)
     }
-    pub fn place_cache_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn place_cache_file<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         write_file(&self.cache_home, path)
     }
-    pub fn place_runtime_file<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn place_runtime_file<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         write_file(self.get_runtime_directory(), path)
     }
 
-    pub fn find_data_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+    pub fn find_data_file<P>(&self, path: P) -> Option<PathBuf>
+            where P: AsRef<Path> {
         read_file(&self.data_home, &self.data_dirs, path)
     }
-    pub fn find_config_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+    pub fn find_config_file<P>(&self, path: P) -> Option<PathBuf>
+            where P: AsRef<Path> {
         read_file(&self.config_home, &self.config_dirs, path)
     }
-    pub fn find_cache_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+    pub fn find_cache_file<P>(&self, path: P) -> Option<PathBuf>
+            where P: AsRef<Path> {
         read_file(&self.cache_home, &Vec::new(), path)
     }
-    pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf> where P: AsRef<Path> {
+    pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf>
+            where P: AsRef<Path> {
         read_file(self.get_runtime_directory(), &Vec::new(), path)
     }
 
-    pub fn create_data_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn create_data_directory<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         create_directory(&self.data_home, path)
     }
-    pub fn create_config_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn create_config_directory<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         create_directory(&self.config_home, path)
     }
-    pub fn create_cache_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn create_cache_directory<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         create_directory(&self.cache_home, path)
     }
-    pub fn create_runtime_directory<P>(&self, path: P) -> PathBuf where P: AsRef<Path> {
+    pub fn create_runtime_directory<P>(&self, path: P) -> IoResult<PathBuf>
+            where P: AsRef<Path> {
         create_directory(self.get_runtime_directory(), path)
     }
 
-    pub fn list_data_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+    pub fn list_data_files<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
         list_files(&self.data_home, &self.data_dirs, path)
     }
-    pub fn list_data_files_once<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+    pub fn list_data_files_once<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
         list_files_once(&self.data_home, &self.data_dirs, path)
     }
-    pub fn list_config_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+    pub fn list_config_files<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
         list_files(&self.config_home, &self.config_dirs, path)
     }
-    pub fn list_config_files_once<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+    pub fn list_config_files_once<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
         list_files_once(&self.config_home, &self.config_dirs, path)
     }
-    pub fn list_cache_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+    pub fn list_cache_files<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
         list_files(&self.cache_home, &Vec::new(), path)
     }
-    pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf> where P: AsRef<Path> {
+    pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
         list_files(self.get_runtime_directory(), &Vec::new(), path)
     }
 }
 
-fn write_file<P>(home: &Path, path: P) -> PathBuf
+fn write_file<P>(home: &Path, path: P) -> IoResult<PathBuf>
         where P: AsRef<Path> {
     match path.as_ref().parent() {
-        Some(parent) => fs::create_dir_all(home.join(parent)).unwrap(),
-        None => fs::create_dir_all(home).unwrap(),
+        Some(parent) => try!(fs::create_dir_all(home.join(parent))),
+        None => try!(fs::create_dir_all(home)),
     }
-    PathBuf::from(home.join(path.as_ref()))
+    Ok(PathBuf::from(home.join(path.as_ref())))
 }
 
-fn create_directory<P>(home: &Path, path: P) -> PathBuf
+fn create_directory<P>(home: &Path, path: P) -> IoResult<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
-    fs::create_dir_all(&full_path).unwrap();
-    full_path
+    try!(fs::create_dir_all(&full_path));
+    Ok(full_path)
 }
 
 fn read_file<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
     if full_path.exists() {
-        return Some(full_path);
+        return Some(full_path)
     }
     for dir in dirs.iter() {
         let full_path = dir.join(path.as_ref());
         if full_path.exists() {
-            return Some(full_path);
+            return Some(full_path)
         }
     }
     None
@@ -319,9 +338,9 @@ fn test_runtime_good() {
             Err(env::VarError::NotPresent)
         }
     });
-    xd.create_runtime_directory("foo");
+    xd.create_runtime_directory("foo").unwrap();
     assert!(Path::new("test_files/runtime-good/foo").is_dir());
-    let w = xd.place_runtime_file("bar/baz");
+    let w = xd.place_runtime_file("bar/baz").unwrap();
     assert!(Path::new("test_files/runtime-good/bar").is_dir());
     assert!(!Path::new("test_files/runtime-good/bar/baz").exists());
     File::create(&w).unwrap();
