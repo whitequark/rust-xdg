@@ -4,6 +4,8 @@ rust-xdg
 rust-xdg is a library that makes it easy to follow the X Desktop Group
 standards for data, configuration, cache and runtime directories.
 
+See also [documentation](https://whitequark.github.io/rust-xdg/xdg/).
+
 Installation
 ------------
 

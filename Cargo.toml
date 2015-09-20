@@ -3,6 +3,7 @@ name = "xdg"
 version = "1.0.0"
 description = "A library for querying locations of XDG Base Directories"
 homepage = "https://github.com/whitequark/rust-xdg"
+documentation = "https://whitequark.github.io/rust-xdg/xdg/"
 repository = "https://github.com/whitequark/rust-xdg"
 readme = "README.md"
 keywords = ["linux", ]
