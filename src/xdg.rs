@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
 use std::io::Result as IoResult;
+use std::ffi::OsString;
 
 use std::fs::PathExt;
 use std::os::unix::fs::PermissionsExt;
@@ -89,18 +90,18 @@ impl BaseDirectories
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
     pub fn new() -> BaseDirectories {
-        BaseDirectories::with_env("", &|name| env::var(name))
+        BaseDirectories::with_env("", &|name| env::var_os(name))
     }
 
     /// Same as [`new()`](#method.new), but `prefix` is implicitly prepended to
     /// every path that is looked up.
     pub fn with_prefix<P>(prefix: P) -> BaseDirectories where P: AsRef<Path> {
-        BaseDirectories::with_env(prefix, &|name| env::var(name))
+        BaseDirectories::with_env(prefix, &|name| env::var_os(name))
     }
 
     fn with_env<P, T: ?Sized>(prefix: P, env_var: &T) -> BaseDirectories
-            where P: AsRef<Path>, T: Fn(&str) -> Result<String, env::VarError> {
-        fn abspath(path: String) -> Option<PathBuf> {
+            where P: AsRef<Path>, T: Fn(&str) -> Option<OsString> {
+        fn abspath(path: OsString) -> Option<PathBuf> {
             let path = PathBuf::from(path);
             if path.is_absolute() {
                 Some(path)
@@ -109,7 +110,7 @@ impl BaseDirectories
             }
         }
 
-        fn abspaths(paths: String) -> Option<Vec<PathBuf>> {
+        fn abspaths(paths: OsString) -> Option<Vec<PathBuf>> {
             let paths = env::split_paths(&paths)
                             .map(PathBuf::from)
                             .filter(|ref path| path.is_absolute())
@@ -124,23 +125,23 @@ impl BaseDirectories
         let home = PathBuf::from(env_var("HOME").expect("$HOME must be set"));
 
         let data_home   = env_var("XDG_DATA_HOME")
-                              .ok().and_then(abspath)
+                              .and_then(abspath)
                               .unwrap_or(home.join(".local/share"));
         let config_home = env_var("XDG_CONFIG_HOME")
-                              .ok().and_then(abspath)
+                              .and_then(abspath)
                               .unwrap_or(home.join(".config"));
         let cache_home  = env_var("XDG_CACHE_HOME")
-                              .ok().and_then(abspath)
+                              .and_then(abspath)
                               .unwrap_or(home.join(".cache"));
         let data_dirs   = env_var("XDG_DATA_DIRS")
-                              .ok().and_then(abspaths)
+                              .and_then(abspaths)
                               .unwrap_or(vec![PathBuf::from("/usr/local/share"),
                                               PathBuf::from("/usr/share")]);
         let config_dirs = env_var("XDG_CONFIG_DIRS")
-                              .ok().and_then(abspaths)
+                              .and_then(abspaths)
                               .unwrap_or(vec![PathBuf::from("/etc/xdg")]);
         let runtime_dir = env_var("XDG_RUNTIME_DIR")
-                              .ok().and_then(abspath); // optional
+                              .and_then(abspath); // optional
 
         // If XDG_RUNTIME_DIR is in the environment but not secure,
         // do not allow recovery.
@@ -405,12 +406,12 @@ fn make_relative<P>(path: P) -> PathBuf where P: AsRef<Path> {
 
 #[cfg(test)]
 fn make_env(vars: Vec<(&'static str, String)>) ->
-        Box<Fn(&str)->Result<String, env::VarError>> {
+        Box<Fn(&str)->Option<OsString>> {
     return Box::new(move |name| {
         for &(key, ref value) in vars.iter() {
-            if key == name { return Ok(value.clone()) }
+            if key == name { return Some(OsString::from(value)) }
         }
-        Err(env::VarError::NotPresent)
+        None
     })
 }
 
