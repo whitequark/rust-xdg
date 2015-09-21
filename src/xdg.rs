@@ -1,5 +1,6 @@
 #![feature(path_ext, path_relative_from)]
 
+use std::iter;
 use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
@@ -229,10 +230,10 @@ fn read_file<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
 
 fn list_files<P>(home: &Path, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
         where P: AsRef<Path> {
-    [home.join(path.as_ref())].iter()
+    iter::once(home)
         .chain(dirs.iter())
-        .map(|path| {
-            fs::read_dir(home.join(path))
+        .map(|base_dir| {
+            fs::read_dir(base_dir.join(path.as_ref()))
                .map(|dir| dir.filter_map(|entry| entry.ok())
                              .map(|entry| entry.path())
                              .collect::<Vec<_>>())
