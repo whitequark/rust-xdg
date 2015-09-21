@@ -2,7 +2,7 @@ rust-xdg
 ========
 
 rust-xdg is a library that makes it easy to follow the X Desktop Group
-standards for data, configuration, cache and runtime directories.
+standards for data, configuration, cache and runtime files.
 
 Installation
 ------------
@@ -11,7 +11,7 @@ Add the following to `Cargo.toml`:
 
 ```toml
 [dependencies]
-xdg = "*"
+xdg = "^2.0"
 ```
 
 Examples
