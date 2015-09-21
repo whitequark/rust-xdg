@@ -2,7 +2,11 @@ rust-xdg
 ========
 
 rust-xdg is a library that makes it easy to follow the X Desktop Group
-standards for data, configuration, cache and runtime files.
+standards.
+
+Currently, only [XDG Base Directory][basedir] standard is implemented.
+
+[basedir]: http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
 Installation
 ------------
@@ -17,7 +21,7 @@ xdg = "^2.0"
 Examples
 --------
 
-See [documentation](https://whitequark.github.io/rust-xdg/xdg/struct.BaseDirectories.html).
+See [documentation](https://whitequark.github.io/rust-xdg/xdg/).
 
 License
 -------
