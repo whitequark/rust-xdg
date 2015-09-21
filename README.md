@@ -2,9 +2,9 @@ rust-xdg
 ========
 
 rust-xdg is a library that makes it easy to follow the X Desktop Group
-standards.
+specifications.
 
-Currently, only [XDG Base Directory][basedir] standard is implemented.
+Currently, only [XDG Base Directory][basedir] specification is implemented.
 
 [basedir]: http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
