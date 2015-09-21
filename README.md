@@ -19,13 +19,17 @@ xdg = "*"
 Examples
 --------
 
-To store configuration:
+To configure paths for application `myapp`:
 
 ```rust
 extern crate xdg;
-let xdg_dirs = xdg::BaseDirectories::new();
+let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp");
+```
 
-let config_path = xdg_dirs.place_config_file("myapp/config.ini")
+To store configuration:
+
+```rust
+let config_path = xdg_dirs.place_config_file("config.ini")
                           .expect("cannot create configuration directory");
 let mut config_file = try!(File::create(config_path));
 try!(write!(&mut config_file, "configured = 1"));
@@ -38,7 +42,7 @@ The leading directories will be automatically created.
 To retrieve supplementary data:
 
 ```rust
-let logo_path = xdg_dirs.find_config_file("myapp/logo.png")
+let logo_path = xdg_dirs.find_config_file("logo.png")
                         .expect("application data not present");
 let mut logo_file = try!(File::open(logo_path));
 let mut logo = Vec::new();

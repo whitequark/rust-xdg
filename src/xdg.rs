@@ -9,6 +9,7 @@ use std::fs::PathExt;
 use std::os::unix::fs::PermissionsExt;
 
 pub struct BaseDirectories {
+    prefix: PathBuf,
     data_home: PathBuf,
     config_home: PathBuf,
     cache_home: PathBuf,
@@ -20,11 +21,15 @@ pub struct BaseDirectories {
 impl BaseDirectories
 {
     pub fn new() -> BaseDirectories {
-        BaseDirectories::new_with_env(&|name| env::var(name))
+        BaseDirectories::with_env("", &|name| env::var(name))
     }
 
-    fn new_with_env<T: ?Sized>(env_var: &T) -> BaseDirectories
-            where T: Fn(&str) -> Result<String, env::VarError> {
+    pub fn with_prefix<P>(prefix: P) -> BaseDirectories where P: AsRef<Path> {
+        BaseDirectories::with_env(prefix, &|name| env::var(name))
+    }
+
+    fn with_env<P, T: ?Sized>(prefix: P, env_var: &T) -> BaseDirectories
+            where P: AsRef<Path>, T: Fn(&str) -> Result<String, env::VarError> {
         fn abspath(path: String) -> Option<PathBuf> {
             let path = PathBuf::from(path);
             if path.is_absolute() {
@@ -46,7 +51,7 @@ impl BaseDirectories
             }
         }
 
-        let home = env::home_dir().expect("$HOME must be set");
+        let home = PathBuf::from(env_var("HOME").expect("$HOME must be set"));
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .ok().and_then(abspath)
@@ -83,6 +88,7 @@ impl BaseDirectories
         }
 
         BaseDirectories {
+            prefix: PathBuf::from(prefix.as_ref()),
             data_home: data_home,
             config_home: config_home,
             cache_home: cache_home,
@@ -101,78 +107,92 @@ impl BaseDirectories
 
     pub fn place_data_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(&self.data_home, path)
+        write_file(&self.data_home, self.prefix.join(path))
     }
     pub fn place_config_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(&self.config_home, path)
+        write_file(&self.config_home, self.prefix.join(path))
     }
     pub fn place_cache_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(&self.cache_home, path)
+        write_file(&self.cache_home, self.prefix.join(path))
     }
     pub fn place_runtime_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(self.get_runtime_directory(), path)
+        write_file(self.get_runtime_directory(), self.prefix.join(path))
     }
 
     pub fn find_data_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
-        read_file(&self.data_home, &self.data_dirs, path)
+        read_file(&self.data_home, &self.data_dirs,
+                  self.prefix.join(path))
     }
     pub fn find_config_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
-        read_file(&self.config_home, &self.config_dirs, path)
+        read_file(&self.config_home, &self.config_dirs,
+                  self.prefix.join(path))
     }
     pub fn find_cache_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
-        read_file(&self.cache_home, &Vec::new(), path)
+        read_file(&self.cache_home, &Vec::new(),
+                  self.prefix.join(path))
     }
     pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
-        read_file(self.get_runtime_directory(), &Vec::new(), path)
+        read_file(self.get_runtime_directory(), &Vec::new(),
+                  self.prefix.join(path))
     }
 
     pub fn create_data_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        create_directory(&self.data_home, path)
+        create_directory(&self.data_home,
+                         self.prefix.join(path))
     }
     pub fn create_config_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        create_directory(&self.config_home, path)
+        create_directory(&self.config_home,
+                         self.prefix.join(path))
     }
     pub fn create_cache_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        create_directory(&self.cache_home, path)
+        create_directory(&self.cache_home,
+                         self.prefix.join(path))
     }
     pub fn create_runtime_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        create_directory(self.get_runtime_directory(), path)
+        create_directory(self.get_runtime_directory(),
+                         self.prefix.join(path))
     }
 
     pub fn list_data_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files(&self.data_home, &self.data_dirs, path)
+        list_files(&self.data_home, &self.data_dirs,
+                   self.prefix.join(path))
     }
     pub fn list_data_files_once<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files_once(&self.data_home, &self.data_dirs, path)
+        list_files_once(&self.data_home, &self.data_dirs,
+                        self.prefix.join(path))
     }
     pub fn list_config_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files(&self.config_home, &self.config_dirs, path)
+        list_files(&self.config_home, &self.config_dirs,
+                   self.prefix.join(path))
     }
     pub fn list_config_files_once<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files_once(&self.config_home, &self.config_dirs, path)
+        list_files_once(&self.config_home, &self.config_dirs,
+                        self.prefix.join(path))
     }
     pub fn list_cache_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files(&self.cache_home, &Vec::new(), path)
+        list_files(&self.cache_home, &Vec::new(),
+                   self.prefix.join(path))
     }
     pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files(self.get_runtime_directory(), &Vec::new(), path)
+        list_files(self.get_runtime_directory(), &Vec::new(),
+                   self.prefix.join(path))
     }
 }
 
@@ -269,13 +289,14 @@ fn test_files_exists() {
 
 #[test]
 fn test_bad_environment() {
-    let xd = BaseDirectories::new_with_env(&*make_env(vec![
+    let xd = BaseDirectories::with_env("", &*make_env(vec![
+            ("HOME", "test_files/user".to_string()),
             ("XDG_DATA_HOME", "test_files/user/data".to_string()),
             ("XDG_CONFIG_HOME", "test_files/user/config".to_string()),
             ("XDG_CACHE_HOME", "test_files/user/cache".to_string()),
             ("XDG_DATA_DIRS", "test_files/user/data".to_string()),
             ("XDG_CONFIG_DIRS", "test_files/user/config".to_string()),
-            // ("XDG_RUNTIME_DIR", "test_files/runtime-bad".to_string())
+            ("XDG_RUNTIME_DIR", "test_files/runtime-bad".to_string())
         ]));
     assert_eq!(xd.find_data_file("everywhere"), None);
     assert_eq!(xd.find_config_file("everywhere"), None);
@@ -285,13 +306,14 @@ fn test_bad_environment() {
 #[test]
 fn test_good_environment() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::new_with_env(&*make_env(vec![
+    let xd = BaseDirectories::with_env("", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
             ("XDG_DATA_DIRS", format!("{}/test_files/system0/data:{}/test_files/system1/data:{}/test_files/system2/data:{}/test_files/system3/data", cwd, cwd, cwd, cwd)),
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
-            //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
+            // ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ]));
     assert!(xd.find_data_file("everywhere") != None);
     assert!(xd.find_config_file("everywhere") != None);
@@ -300,15 +322,12 @@ fn test_good_environment() {
 
 #[test]
 fn test_runtime_bad() {
-    let test_runtime_dir = make_absolute(&"test_files/runtime-bad");
     std::thread::spawn(move || {
-        let _ = BaseDirectories::new_with_env(&|v| {
-            if v == "XDG_RUNTIME_DIR" {
-                Ok(test_runtime_dir.to_string_lossy().into_owned())
-            } else {
-                Err(env::VarError::NotPresent)
-            }
-        });
+        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let _ = BaseDirectories::with_env("", &*make_env(vec![
+                ("HOME", format!("{}/test_files/user", cwd)),
+                ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
+            ]));
     }).join().unwrap_err();
 }
 
@@ -324,13 +343,12 @@ fn test_runtime_good() {
     perms.set_mode(0o700);
     fs::set_permissions(&test_runtime_dir, perms).unwrap();
 
-    let xd = BaseDirectories::new_with_env(&|v| {
-        if v == "XDG_RUNTIME_DIR" {
-            Ok(test_runtime_dir.to_string_lossy().into_owned())
-        } else {
-            Err(env::VarError::NotPresent)
-        }
-    });
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let xd = BaseDirectories::with_env("", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
+            ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-good", cwd)),
+        ]));
+
     xd.create_runtime_directory("foo").unwrap();
     assert!(Path::new("test_files/runtime-good/foo").is_dir());
     let w = xd.place_runtime_file("bar/baz").unwrap();
@@ -356,13 +374,13 @@ fn test_runtime_good() {
 #[test]
 fn test_lists() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::new_with_env(&*make_env(vec![
+    let xd = BaseDirectories::with_env("", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
             ("XDG_DATA_DIRS", format!("{}/test_files/system0/data:{}/test_files/system1/data:{}/test_files/system2/data:{}/test_files/system3/data", cwd, cwd, cwd, cwd)),
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
-            //("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
         ]));
 
     let files = xd.list_config_files(".");
@@ -388,7 +406,18 @@ fn test_lists() {
             "test_files/system1/config/both_system_config.file",
             "test_files/system1/config/system1_config.file",
             "test_files/system2/config/system2_config.file",
-            "test_files/user/config/./everywhere",
-            "test_files/user/config/./user_config.file",
+            "test_files/user/config/everywhere",
+            "test_files/user/config/user_config.file",
         ].iter().map(PathBuf::from).collect::<Vec<_>>());
+}
+
+#[test]
+fn test_prefix() {
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let xd = BaseDirectories::with_env("myapp", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
+            ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
+        ]));
+    assert_eq!(xd.place_cache_file("cache.db").unwrap(),
+               PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
 }
