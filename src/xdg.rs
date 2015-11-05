@@ -1,4 +1,4 @@
-#![feature(path_ext, path_relative_from)]
+#![feature(path_relative_from)]
 
 use std::iter;
 use std::path::{Path, PathBuf};
@@ -7,7 +7,6 @@ use std::fs;
 use std::io::Result as IoResult;
 use std::ffi::OsString;
 
-use std::fs::PathExt;
 use std::os::unix::fs::PermissionsExt;
 
 /// BaseDirectories allows to look up paths to configuration, data,
