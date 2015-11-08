@@ -1,5 +1,3 @@
-#![feature(path_relative_from)]
-
 use std::iter;
 use std::path::{Path, PathBuf};
 use std::env;
