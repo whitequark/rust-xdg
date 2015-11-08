@@ -329,6 +329,31 @@ impl BaseDirectories
         list_files(self.get_runtime_directory(), &Vec::new(),
                    self.prefix.join(path))
     }
+
+    /// Returns the `XDG_DATA_HOME` directory.
+    pub fn get_data_home(&self) -> PathBuf {
+        self.data_home.join(&self.prefix)
+    }
+
+    /// Returns the `XDG_CONFIG_HOME` directory.
+    pub fn get_config_home(&self) -> PathBuf {
+        self.config_home.join(&self.prefix)
+    }
+
+    /// Returns the `XDG_CACHE_HOME` directory.
+    pub fn get_cache_home(&self) -> PathBuf {
+        self.cache_home.join(&self.prefix)
+    }
+
+    /// Returns the `XDG_DATA_DIRS` directories.
+    pub fn get_data_dirs(&self) -> Vec<PathBuf> {
+        self.data_dirs.iter().map(|p| p.join(&self.prefix)).collect()
+    }
+
+    /// Returns the `XDG_CONFIG_DIRS` directories.
+    pub fn get_config_dirs(&self) -> Vec<PathBuf> {
+        self.config_dirs.iter().map(|p| p.join(&self.prefix)).collect()
+    }
 }
 
 fn write_file<P>(home: &PathBuf, path: P) -> IoResult<PathBuf>
