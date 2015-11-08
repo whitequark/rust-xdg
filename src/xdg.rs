@@ -78,7 +78,8 @@ impl BaseDirectories
     /// and returns a value that can be used for lookup.
     /// The following environment variables are examined:
     ///
-    ///   * `HOME`; if not set: panic.
+    ///   * `HOME`; if not set: use the same fallback as `std::env::home_dir()`;
+    ///     if still not available: panic.
     ///   * `XDG_DATA_HOME`; if not set: assumed to be `$HOME/.local/share`.
     ///   * `XDG_CONFIG_HOME`; if not set: assumed to be `$HOME/.config`.
     ///   * `XDG_CACHE_HOME`; if not set: assumed to be `$HOME/.cache`.
@@ -121,7 +122,7 @@ impl BaseDirectories
             }
         }
 
-        let home = PathBuf::from(env_var("HOME").expect("$HOME must be set"));
+        let home = std::env::home_dir().expect("$HOME must be set");
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .and_then(abspath)
