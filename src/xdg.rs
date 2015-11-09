@@ -330,27 +330,32 @@ impl BaseDirectories
                    self.prefix.join(path))
     }
 
-    /// Returns the `XDG_DATA_HOME` directory.
+    /// Returns the user-specific data directory (set by `XDG_DATA_HOME`).
     pub fn get_data_home(&self) -> PathBuf {
         self.data_home.join(&self.prefix)
     }
 
-    /// Returns the `XDG_CONFIG_HOME` directory.
+    /// Returns the user-specific configuration directory (set by
+    /// `XDG_CONFIG_HOME`).
     pub fn get_config_home(&self) -> PathBuf {
         self.config_home.join(&self.prefix)
     }
 
-    /// Returns the `XDG_CACHE_HOME` directory.
+    /// Returns the user-specific directory for non-essential (cached) data
+    /// (set by `XDG_CACHE_HOME`).
     pub fn get_cache_home(&self) -> PathBuf {
         self.cache_home.join(&self.prefix)
     }
 
-    /// Returns the `XDG_DATA_DIRS` directories.
+    /// Returns a preference ordered (preferred to less preferred) list of
+    /// supplementary data directories, ordered by preference (set by
+    /// `XDG_DATA_DIRS`).
     pub fn get_data_dirs(&self) -> Vec<PathBuf> {
         self.data_dirs.iter().map(|p| p.join(&self.prefix)).collect()
     }
 
-    /// Returns the `XDG_CONFIG_DIRS` directories.
+    /// Returns a preference ordered (preferred to less preferred) list of
+    /// supplementary configuration directories (set by `XDG_CONFIG_DIRS`).
     pub fn get_config_dirs(&self) -> Vec<PathBuf> {
         self.config_dirs.iter().map(|p| p.join(&self.prefix)).collect()
     }
