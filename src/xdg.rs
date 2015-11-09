@@ -1,3 +1,4 @@
+#![cfg(unix)]
 #![feature(path_relative_from)]
 
 use std::iter;
