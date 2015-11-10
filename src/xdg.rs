@@ -1,5 +1,5 @@
 #![cfg(unix)]
-#![feature(path_relative_from)]
+#![cfg_attr(test, feature(path_relative_from))]
 
 use std::iter;
 use std::path::{Path, PathBuf};
