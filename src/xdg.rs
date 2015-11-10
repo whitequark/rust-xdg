@@ -147,7 +147,7 @@ impl BaseDirectories
         // If XDG_RUNTIME_DIR is in the environment but not secure,
         // do not allow recovery.
         if let Some(ref runtime_dir) = runtime_dir {
-            match runtime_dir.metadata() {
+            match fs::metadata(runtime_dir) {
                 Err(_) => {
                     panic!("$XDG_RUNTIME_DIR must be accessible by the current user");
                 }
@@ -378,15 +378,19 @@ fn create_directory<P>(home: &PathBuf, path: P) -> IoResult<PathBuf>
     Ok(full_path)
 }
 
+fn path_exists(path: &Path) -> bool {
+    fs::metadata(path).is_ok()
+}
+
 fn read_file<P>(home: &PathBuf, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
-    if full_path.exists() {
+    if path_exists(&full_path) {
         return Some(full_path)
     }
     for dir in dirs.iter() {
         let full_path = dir.join(path.as_ref());
-        if full_path.exists() {
+        if path_exists(&full_path) {
             return Some(full_path)
         }
     }
