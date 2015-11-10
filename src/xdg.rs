@@ -1,5 +1,4 @@
 #![cfg(unix)]
-#![cfg_attr(test, feature(path_relative_from))]
 
 use std::iter;
 use std::path::{Path, PathBuf};
@@ -378,8 +377,19 @@ fn create_directory<P>(home: &PathBuf, path: P) -> IoResult<PathBuf>
     Ok(full_path)
 }
 
-fn path_exists(path: &Path) -> bool {
-    fs::metadata(path).is_ok()
+fn path_exists<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
+    fn inner(path: &Path) -> bool {
+        fs::metadata(path).is_ok()
+    }
+    inner(path.as_ref())
+}
+
+#[cfg(test)]
+fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
+    fn inner(path: &Path) -> bool {
+        fs::metadata(path).map(|m| m.is_dir()).unwrap_or(false)
+    }
+    inner(path.as_ref())
 }
 
 fn read_file<P>(home: &PathBuf, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
@@ -435,8 +445,27 @@ fn make_absolute<P>(path: P) -> PathBuf where P: AsRef<Path> {
 }
 
 #[cfg(test)]
+fn iter_after<A, I, J>(mut iter: I, mut prefix: J) -> Option<I> where
+    I: Iterator<Item=A> + Clone, J: Iterator<Item=A>, A: PartialEq
+{
+    loop {
+        let mut iter_next = iter.clone();
+        match (iter_next.next(), prefix.next()) {
+            (Some(x), Some(y)) => {
+                if x != y { return None }
+            }
+            (Some(_), None) => return Some(iter),
+            (None, None) => return Some(iter),
+            (None, Some(_)) => return None,
+        }
+        iter = iter_next;
+    }
+}
+
+#[cfg(test)]
 fn make_relative<P>(path: P) -> PathBuf where P: AsRef<Path> {
-    path.as_ref().relative_from(&env::current_dir().unwrap()).unwrap().to_owned()
+    iter_after(path.as_ref().components(), env::current_dir().unwrap().components())
+        .unwrap().as_path().to_owned()
 }
 
 #[cfg(test)]
@@ -452,9 +481,9 @@ fn make_env(vars: Vec<(&'static str, String)>) ->
 
 #[test]
 fn test_files_exists() {
-    assert!(Path::new("test_files").exists());
-    assert!(Path::new("test_files/runtime-bad")
-                 .metadata().unwrap().permissions().mode() & 0o077 != 0);
+    assert!(path_exists("test_files"));
+    assert!(fs::metadata("test_files/runtime-bad")
+                 .unwrap().permissions().mode() & 0o077 != 0);
 }
 
 #[test]
@@ -520,12 +549,12 @@ fn test_runtime_good() {
         ]));
 
     xd.create_runtime_directory("foo").unwrap();
-    assert!(Path::new("test_files/runtime-good/foo").is_dir());
+    assert!(path_is_dir("test_files/runtime-good/foo"));
     let w = xd.place_runtime_file("bar/baz").unwrap();
-    assert!(Path::new("test_files/runtime-good/bar").is_dir());
-    assert!(!Path::new("test_files/runtime-good/bar/baz").exists());
+    assert!(path_is_dir("test_files/runtime-good/bar"));
+    assert!(!path_exists("test_files/runtime-good/bar/baz"));
     File::create(&w).unwrap();
-    assert!(Path::new("test_files/runtime-good/bar/baz").exists());
+    assert!(path_exists("test_files/runtime-good/bar/baz"));
     assert!(xd.find_runtime_file("bar/baz") == Some(w.clone()));
     File::open(&w).unwrap();
     fs::remove_file(&w).unwrap();
@@ -538,7 +567,7 @@ fn test_runtime_good() {
     assert!(xd.list_runtime_files("bar").is_empty());
     assert!(xd.find_runtime_file("foo/qux").is_none());
     assert!(xd.find_runtime_file("qux/foo").is_none());
-    assert!(!Path::new("test_files/runtime-good/qux").exists());
+    assert!(!path_exists("test_files/runtime-good/qux"));
 }
 
 #[test]
