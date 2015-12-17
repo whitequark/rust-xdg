@@ -146,16 +146,10 @@ impl BaseDirectories
         // If XDG_RUNTIME_DIR is in the environment but not secure,
         // do not allow recovery.
         if let Some(ref runtime_dir) = runtime_dir {
-            match fs::metadata(runtime_dir) {
-                Err(_) => {
-                    panic!("$XDG_RUNTIME_DIR must be accessible by the current user");
-                }
-                Ok(metadata) => {
-                    if metadata.permissions().mode() & 0o077 != 0 {
-                        panic!("$XDG_RUNTIME_DIR must be secure: have permissions 0700");
-                    }
-                }
-            }
+            assert!(fs::read_dir(runtime_dir).is_ok(),
+                    "$XDG_RUNTIME_DIR must be accessible by the current user");
+            assert!(fs::metadata(runtime_dir).unwrap().permissions().mode() & 0o077 == 0,
+                    "$XDG_RUNTIME_DIR must be secure: have permissions 0700");
         }
 
         BaseDirectories {
