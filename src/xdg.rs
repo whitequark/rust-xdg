@@ -1,6 +1,5 @@
 #![cfg(unix)]
 
-use std::iter;
 use std::path::{Path, PathBuf};
 use std::env;
 use std::fs;
@@ -63,7 +62,8 @@ use std::os::unix::fs::PermissionsExt;
 /// supplementary data files, most likely `~/.local/share/myapp/logo.png`,
 /// then `/usr/local/share/myapp/logo.png` and `/usr/share/myapp/logo.png`.
 pub struct BaseDirectories {
-    prefix: PathBuf,
+    shared_prefix: PathBuf,
+    user_prefix: PathBuf,
     data_home: PathBuf,
     config_home: PathBuf,
     cache_home: PathBuf,
@@ -90,17 +90,38 @@ impl BaseDirectories
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
     pub fn new() -> BaseDirectories {
-        BaseDirectories::with_env("", &|name| env::var_os(name))
+        BaseDirectories::with_env("", "", &|name| env::var_os(name))
     }
 
     /// Same as [`new()`](#method.new), but `prefix` is implicitly prepended to
     /// every path that is looked up.
     pub fn with_prefix<P>(prefix: P) -> BaseDirectories where P: AsRef<Path> {
-        BaseDirectories::with_env(prefix, &|name| env::var_os(name))
+        BaseDirectories::with_env(prefix, "", &|name| env::var_os(name))
     }
 
-    fn with_env<P, T: ?Sized>(prefix: P, env_var: &T) -> BaseDirectories
-            where P: AsRef<Path>, T: Fn(&str) -> Option<OsString> {
+    /// Same as [`with_prefix()`](#method.with_prefix),
+    /// with `profile` also implicitly prepended to every path that is looked up,
+    /// but only for user-specific directories.
+    ///
+    /// This allows each user to have mutliple "profiles" with different user-specific data.
+    ///
+    /// For example:
+    ///
+    /// ```rust
+    /// let dirs = BaseDirectories::with_profile("program-name", "profile-name")
+    /// dirs.find_data_file("bar.jpg");
+    /// dirs.find_config_file("foo.conf");
+    /// ```
+    ///
+    /// will find `/usr/share/program-name/bar.jpg` (without `profile-name`)
+    /// and `~/.config/program-name/profile-name/foo.conf`.
+    pub fn with_profile<P1, P2>(prefix: P1, profile: P2) -> BaseDirectories
+            where P1: AsRef<Path>, P2: AsRef<Path> {
+        BaseDirectories::with_env(prefix, profile, &|name| env::var_os(name))
+    }
+
+    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
+            where P1: AsRef<Path>, P2: AsRef<Path>, T: Fn(&str) -> Option<OsString> {
         fn abspath(path: OsString) -> Option<PathBuf> {
             let path = PathBuf::from(path);
             if path.is_absolute() {
@@ -158,8 +179,10 @@ impl BaseDirectories
             }
         }
 
+        let prefix = PathBuf::from(prefix.as_ref());
         BaseDirectories {
-            prefix: PathBuf::from(prefix.as_ref()),
+            user_prefix: prefix.join(profile.as_ref()),
+            shared_prefix: prefix,
             data_home: data_home,
             config_home: config_home,
             cache_home: cache_home,
@@ -184,21 +207,21 @@ impl BaseDirectories
     /// if that is not possible, an error is returned.
     pub fn place_config_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(&self.config_home, self.prefix.join(path))
+        write_file(&self.config_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a data file in `XDG_DATA_HOME`.
     pub fn place_data_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(&self.data_home, self.prefix.join(path))
+        write_file(&self.data_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a cache file in `XDG_CACHE_HOME`.
     pub fn place_cache_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(&self.cache_home, self.prefix.join(path))
+        write_file(&self.cache_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
@@ -206,7 +229,7 @@ impl BaseDirectories
     /// If `XDG_RUNTIME_DIR` is not available, panics.
     pub fn place_runtime_file<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
-        write_file(self.get_runtime_directory(), self.prefix.join(path))
+        write_file(self.get_runtime_directory(), self.user_prefix.join(path))
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -215,7 +238,7 @@ impl BaseDirectories
     pub fn find_config_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
         read_file(&self.config_home, &self.config_dirs,
-                  self.prefix.join(path))
+                  &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -224,7 +247,7 @@ impl BaseDirectories
     pub fn find_data_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
         read_file(&self.data_home, &self.data_dirs,
-                  self.prefix.join(path))
+                  &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -232,7 +255,7 @@ impl BaseDirectories
     pub fn find_cache_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
         read_file(&self.cache_home, &Vec::new(),
-                  self.prefix.join(path))
+                  &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -241,7 +264,7 @@ impl BaseDirectories
     pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
         read_file(self.get_runtime_directory(), &Vec::new(),
-                  self.prefix.join(path))
+                  &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, returns an absolute path to a configuration
@@ -251,7 +274,7 @@ impl BaseDirectories
     pub fn create_config_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.config_home,
-                         self.prefix.join(path))
+                         self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
@@ -259,7 +282,7 @@ impl BaseDirectories
     pub fn create_data_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.data_home,
-                         self.prefix.join(path))
+                         self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
@@ -267,7 +290,7 @@ impl BaseDirectories
     pub fn create_cache_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.cache_home,
-                         self.prefix.join(path))
+                         self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
@@ -276,7 +299,7 @@ impl BaseDirectories
     pub fn create_runtime_directory<P>(&self, path: P) -> IoResult<PathBuf>
             where P: AsRef<Path> {
         create_directory(self.get_runtime_directory(),
-                         self.prefix.join(path))
+                         self.user_prefix.join(path))
     }
 
     /// Given a relative path `path`, list absolute paths to all files
@@ -285,7 +308,7 @@ impl BaseDirectories
     pub fn list_config_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         list_files(&self.config_home, &self.config_dirs,
-                   self.prefix.join(path))
+                   &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Like [`list_config_files`](#method.list_config_files), but
@@ -293,7 +316,7 @@ impl BaseDirectories
     pub fn list_config_files_once<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         list_files_once(&self.config_home, &self.config_dirs,
-                        self.prefix.join(path))
+                        &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, lists absolute paths to all files
@@ -302,7 +325,7 @@ impl BaseDirectories
     pub fn list_data_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         list_files(&self.data_home, &self.data_dirs,
-                   self.prefix.join(path))
+                   &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Like [`list_data_files`](#method.list_data_files), but
@@ -310,7 +333,7 @@ impl BaseDirectories
     pub fn list_data_files_once<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         list_files_once(&self.data_home, &self.data_dirs,
-                        self.prefix.join(path))
+                        &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, lists absolute paths to all files
@@ -318,7 +341,7 @@ impl BaseDirectories
     pub fn list_cache_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         list_files(&self.cache_home, &Vec::new(),
-                   self.prefix.join(path))
+                   &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, lists absolute paths to all files
@@ -327,37 +350,37 @@ impl BaseDirectories
     pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
         list_files(self.get_runtime_directory(), &Vec::new(),
-                   self.prefix.join(path))
+                   &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Returns the user-specific data directory (set by `XDG_DATA_HOME`).
     pub fn get_data_home(&self) -> PathBuf {
-        self.data_home.join(&self.prefix)
+        self.data_home.join(&self.user_prefix)
     }
 
     /// Returns the user-specific configuration directory (set by
     /// `XDG_CONFIG_HOME`).
     pub fn get_config_home(&self) -> PathBuf {
-        self.config_home.join(&self.prefix)
+        self.config_home.join(&self.user_prefix)
     }
 
     /// Returns the user-specific directory for non-essential (cached) data
     /// (set by `XDG_CACHE_HOME`).
     pub fn get_cache_home(&self) -> PathBuf {
-        self.cache_home.join(&self.prefix)
+        self.cache_home.join(&self.user_prefix)
     }
 
     /// Returns a preference ordered (preferred to less preferred) list of
     /// supplementary data directories, ordered by preference (set by
     /// `XDG_DATA_DIRS`).
     pub fn get_data_dirs(&self) -> Vec<PathBuf> {
-        self.data_dirs.iter().map(|p| p.join(&self.prefix)).collect()
+        self.data_dirs.iter().map(|p| p.join(&self.shared_prefix)).collect()
     }
 
     /// Returns a preference ordered (preferred to less preferred) list of
     /// supplementary configuration directories (set by `XDG_CONFIG_DIRS`).
     pub fn get_config_dirs(&self) -> Vec<PathBuf> {
-        self.config_dirs.iter().map(|p| p.join(&self.prefix)).collect()
+        self.config_dirs.iter().map(|p| p.join(&self.shared_prefix)).collect()
     }
 }
 
@@ -392,14 +415,15 @@ fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
     inner(path.as_ref())
 }
 
-fn read_file<P>(home: &PathBuf, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
-        where P: AsRef<Path> {
-    let full_path = home.join(path.as_ref());
+fn read_file(home: &PathBuf, dirs: &Vec<PathBuf>,
+             user_prefix: &Path, shared_prefix: &Path, path: &Path)
+             -> Option<PathBuf> {
+    let full_path = home.join(user_prefix).join(path);
     if path_exists(&full_path) {
         return Some(full_path)
     }
     for dir in dirs.iter() {
-        let full_path = dir.join(path.as_ref());
+        let full_path = dir.join(shared_prefix).join(path);
         if path_exists(&full_path) {
             return Some(full_path)
         }
@@ -407,24 +431,30 @@ fn read_file<P>(home: &PathBuf, dirs: &Vec<PathBuf>, path: P) -> Option<PathBuf>
     None
 }
 
-fn list_files<P>(home: &PathBuf, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
-        where P: AsRef<Path> {
-    iter::once(home)
-        .chain(dirs.iter())
-        .map(|base_dir| {
-            fs::read_dir(base_dir.join(path.as_ref()))
-               .map(|dir| dir.filter_map(|entry| entry.ok())
-                             .map(|entry| entry.path())
-                             .collect::<Vec<_>>())
-               .unwrap_or(Vec::new())
-        })
-        .fold(vec![], |mut accum, paths| { accum.extend(paths); accum })
+fn list_files(home: &Path, dirs: &[PathBuf],
+              user_prefix: &Path, shared_prefix: &Path, path: &Path)
+              -> Vec<PathBuf> {
+    fn read_dir(dir: &Path, into: &mut Vec<PathBuf>) {
+        if let Ok(entries) = fs::read_dir(dir) {
+            into.extend(
+                entries
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path()))
+        }
+    }
+    let mut files = Vec::new();
+    read_dir(&home.join(user_prefix).join(path), &mut files);
+    for dir in dirs {
+        read_dir(&dir.join(shared_prefix).join(path), &mut files);
+    }
+    files
 }
 
-fn list_files_once<P>(home: &PathBuf, dirs: &Vec<PathBuf>, path: P) -> Vec<PathBuf>
-        where P: AsRef<Path> {
+fn list_files_once(home: &Path, dirs: &[PathBuf],
+                   user_prefix: &Path, shared_prefix: &Path, path: &Path)
+                   -> Vec<PathBuf> {
     let mut seen = std::collections::HashSet::new();
-    list_files(home, dirs, path).into_iter().filter(|path| {
+    list_files(home, dirs, user_prefix, shared_prefix, path).into_iter().filter(|path| {
         match path.clone().file_name() {
             None => false,
             Some(filename) => {
@@ -488,7 +518,7 @@ fn test_files_exists() {
 
 #[test]
 fn test_bad_environment() {
-    let xd = BaseDirectories::with_env("", &*make_env(vec![
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", "test_files/user".to_string()),
             ("XDG_DATA_HOME", "test_files/user/data".to_string()),
             ("XDG_CONFIG_HOME", "test_files/user/config".to_string()),
@@ -505,7 +535,7 @@ fn test_bad_environment() {
 #[test]
 fn test_good_environment() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("", &*make_env(vec![
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
@@ -523,7 +553,7 @@ fn test_good_environment() {
 fn test_runtime_bad() {
     std::thread::spawn(move || {
         let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-        let _ = BaseDirectories::with_env("", &*make_env(vec![
+        let _ = BaseDirectories::with_env("", "", &*make_env(vec![
                 ("HOME", format!("{}/test_files/user", cwd)),
                 ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
             ]));
@@ -543,7 +573,7 @@ fn test_runtime_good() {
     fs::set_permissions(&test_runtime_dir, perms).unwrap();
 
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("", &*make_env(vec![
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-good", cwd)),
         ]));
@@ -573,7 +603,7 @@ fn test_runtime_good() {
 #[test]
 fn test_lists() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("", &*make_env(vec![
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
@@ -589,11 +619,13 @@ fn test_lists() {
         [
             "test_files/system1/config/both_system_config.file",
             "test_files/system1/config/everywhere",
+            "test_files/system1/config/myapp",
             "test_files/system1/config/system1_config.file",
             "test_files/system2/config/both_system_config.file",
             "test_files/system2/config/everywhere",
             "test_files/system2/config/system2_config.file",
             "test_files/user/config/everywhere",
+            "test_files/user/config/myapp",
             "test_files/user/config/user_config.file",
         ].iter().map(PathBuf::from).collect::<Vec<_>>());
 
@@ -606,6 +638,7 @@ fn test_lists() {
             "test_files/system1/config/system1_config.file",
             "test_files/system2/config/system2_config.file",
             "test_files/user/config/everywhere",
+            "test_files/user/config/myapp",
             "test_files/user/config/user_config.file",
         ].iter().map(PathBuf::from).collect::<Vec<_>>());
 }
@@ -613,10 +646,26 @@ fn test_lists() {
 #[test]
 fn test_prefix() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("myapp", &*make_env(vec![
+    let xd = BaseDirectories::with_env("myapp", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
         ]));
     assert_eq!(xd.place_cache_file("cache.db").unwrap(),
                PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
+}
+
+#[test]
+fn test_profile() {
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let xd = BaseDirectories::with_env("myapp", "default_profile", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
+            ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
+            ("XDG_CONFIG_DIRS", format!("{}/test_files/system1/config", cwd)),
+       ]));
+    assert_eq!(xd.find_config_file("system1_config.file").unwrap(),
+               // Does *not* include default_profile
+               PathBuf::from(&format!("{}/test_files/system1/config/myapp/system1_config.file", cwd)));
+    assert_eq!(xd.find_config_file("user_config.file").unwrap(),
+               // Includes default_profile
+               PathBuf::from(&format!("{}/test_files/user/config/myapp/default_profile/user_config.file", cwd)));
 }
