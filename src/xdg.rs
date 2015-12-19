@@ -1,12 +1,17 @@
 #![cfg(unix)]
 
-use std::path::{Path, PathBuf};
 use std::env;
+use std::error;
+use std::ffi::OsString;
+use std::fmt;
 use std::fs;
 use std::io::Result as IoResult;
-use std::ffi::OsString;
+use std::io;
+use std::path::{Path, PathBuf};
 
 use std::os::unix::fs::PermissionsExt;
+
+use BaseDirectoriesErrorKind::*;
 
 /// BaseDirectories allows to look up paths to configuration, data,
 /// cache and runtime files in well-known locations according to
@@ -72,6 +77,85 @@ pub struct BaseDirectories {
     runtime_dir: Option<PathBuf>,
 }
 
+pub struct BaseDirectoriesError {
+    kind: BaseDirectoriesErrorKind,
+}
+
+impl BaseDirectoriesError {
+    fn new(kind: BaseDirectoriesErrorKind) -> BaseDirectoriesError {
+        BaseDirectoriesError {
+            kind: kind,
+        }
+    }
+}
+
+impl fmt::Debug for BaseDirectoriesError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl error::Error for BaseDirectoriesError {
+    fn description(&self) -> &str {
+        match self.kind {
+            MissingHomeVariable => "$HOME must be set",
+            XdgRuntimeDirInaccessible(_, _) =>
+                "$XDG_RUNTIME_DIR must be accessible by the current user",
+            XdgRuntimeDirInsecure(_, _) =>
+                "$XDG_RUNTIME_DIR must be secure: have permissions 0700",
+        }
+    }
+    fn cause(&self) -> Option<&error::Error> {
+        match self.kind {
+            XdgRuntimeDirInaccessible(_, ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for BaseDirectoriesError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.kind {
+            MissingHomeVariable => write!(f, "{}", error::Error::description(self)),
+            XdgRuntimeDirInaccessible(ref dir, ref error) => {
+                write!(f, "$XDG_RUNTIME_DIR (`{}`) must be accessible \
+                           by the current user (error: {})", dir.display(), error)
+            },
+            XdgRuntimeDirInsecure(ref dir, permissions) => {
+                write!(f, "$XDG_RUNTIME_DIR (`{}`) must be secure: must have \
+                           permissions 0o700, got {}", dir.display(), permissions)
+            },
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct Permissions(u32);
+
+impl fmt::Debug for Permissions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Permissions(p) = *self;
+        write!(f, "{:#05o}", p)
+    }
+}
+
+impl fmt::Display for Permissions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+#[derive(Debug)]
+enum BaseDirectoriesErrorKind {
+    MissingHomeVariable,
+    XdgRuntimeDirInaccessible(PathBuf, io::Error),
+    XdgRuntimeDirInsecure(PathBuf, Permissions),
+}
+
+fn unwrap<T>(r: Result<T, BaseDirectoriesError>) -> T {
+    r.unwrap_or_else(|e| panic!("{}", e))
+}
+
 impl BaseDirectories
 {
     /// Reads the process environment, determines the XDG base directories,
@@ -90,12 +174,26 @@ impl BaseDirectories
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
     pub fn new() -> BaseDirectories {
+        unwrap(BaseDirectories::try_new())
+    }
+
+    /// Same as [`new()`](#method.new), but errors are caught
+    /// and propagated to the caller.
+    pub fn try_new() -> Result<BaseDirectories, BaseDirectoriesError> {
         BaseDirectories::with_env("", "", &|name| env::var_os(name))
     }
 
     /// Same as [`new()`](#method.new), but `prefix` is implicitly prepended to
     /// every path that is looked up.
     pub fn with_prefix<P>(prefix: P) -> BaseDirectories where P: AsRef<Path> {
+        unwrap(BaseDirectories::try_with_prefix(prefix))
+    }
+
+    /// Same as [`with_prefix()`](#method.with_prefix), but errors are caught
+    /// and propagated to the caller.
+    pub fn try_with_prefix<P>(prefix: P)
+            -> Result<BaseDirectories, BaseDirectoriesError>
+            where P: AsRef<Path> {
         BaseDirectories::with_env(prefix, "", &|name| env::var_os(name))
     }
 
@@ -117,11 +215,29 @@ impl BaseDirectories
     /// and `~/.config/program-name/profile-name/foo.conf`.
     pub fn with_profile<P1, P2>(prefix: P1, profile: P2) -> BaseDirectories
             where P1: AsRef<Path>, P2: AsRef<Path> {
+        unwrap(BaseDirectories::try_with_profile(prefix, profile))
+    }
+
+    /// Same as [`with_profile()`](#method.with_profile), but errors are caught
+    /// and propagated to the caller.
+    pub fn try_with_profile<P1, P2>(prefix: P1, profile: P2)
+            -> Result<BaseDirectories, BaseDirectoriesError>
+            where P1: AsRef<Path>, P2: AsRef<Path> {
         BaseDirectories::with_env(prefix, profile, &|name| env::var_os(name))
     }
 
-    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
+    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T)
+            -> Result<BaseDirectories, BaseDirectoriesError>
             where P1: AsRef<Path>, P2: AsRef<Path>, T: Fn(&str) -> Option<OsString> {
+        BaseDirectories::with_env_impl(prefix.as_ref(), profile.as_ref(), env_var)
+    }
+
+    fn with_env_impl<T: ?Sized>(prefix: &Path, profile: &Path, env_var: &T)
+            -> Result<BaseDirectories, BaseDirectoriesError>
+            where T: Fn(&str) -> Option<OsString> {
+
+        use BaseDirectoriesError as Error;
+
         fn abspath(path: OsString) -> Option<PathBuf> {
             let path = PathBuf::from(path);
             if path.is_absolute() {
@@ -143,7 +259,7 @@ impl BaseDirectories
             }
         }
 
-        let home = std::env::home_dir().expect("$HOME must be set");
+        let home = try!(std::env::home_dir().ok_or(Error::new(MissingHomeVariable)));
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .and_then(abspath)
@@ -167,15 +283,21 @@ impl BaseDirectories
         // If XDG_RUNTIME_DIR is in the environment but not secure,
         // do not allow recovery.
         if let Some(ref runtime_dir) = runtime_dir {
-            assert!(fs::read_dir(runtime_dir).is_ok(),
-                    "$XDG_RUNTIME_DIR must be accessible by the current user");
-            assert!(fs::metadata(runtime_dir).unwrap().permissions().mode() & 0o077 == 0,
-                    "$XDG_RUNTIME_DIR must be secure: have permissions 0700");
+            try!(fs::read_dir(runtime_dir).map_err(|e| {
+                Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
+            }));
+            let permissions = try!(fs::metadata(runtime_dir).map_err(|e| {
+                Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
+            })).permissions().mode();
+            if permissions & 0o077 != 0 {
+                return Err(Error::new(XdgRuntimeDirInsecure(runtime_dir.clone(),
+                                                            Permissions(permissions))));
+            }
         }
 
-        let prefix = PathBuf::from(prefix.as_ref());
-        BaseDirectories {
-            user_prefix: prefix.join(profile.as_ref()),
+        let prefix = PathBuf::from(prefix);
+        Ok(BaseDirectories {
+            user_prefix: prefix.join(profile),
             shared_prefix: prefix,
             data_home: data_home,
             config_home: config_home,
@@ -183,7 +305,7 @@ impl BaseDirectories
             data_dirs: data_dirs,
             config_dirs: config_dirs,
             runtime_dir: runtime_dir,
-        }
+        })
     }
 
     /// Returns `true` if `XDG_RUNTIME_DIR` is available, `false` otherwise.
@@ -512,7 +634,7 @@ fn test_files_exists() {
 
 #[test]
 fn test_bad_environment() {
-    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+    let xd = unwrap(BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", "test_files/user".to_string()),
             ("XDG_DATA_HOME", "test_files/user/data".to_string()),
             ("XDG_CONFIG_HOME", "test_files/user/config".to_string()),
@@ -520,7 +642,7 @@ fn test_bad_environment() {
             ("XDG_DATA_DIRS", "test_files/user/data".to_string()),
             ("XDG_CONFIG_DIRS", "test_files/user/config".to_string()),
             ("XDG_RUNTIME_DIR", "test_files/runtime-bad".to_string())
-        ]));
+        ])));
     assert_eq!(xd.find_data_file("everywhere"), None);
     assert_eq!(xd.find_config_file("everywhere"), None);
     assert_eq!(xd.find_cache_file("everywhere"), None);
@@ -529,7 +651,7 @@ fn test_bad_environment() {
 #[test]
 fn test_good_environment() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+    let xd = unwrap(BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
@@ -537,7 +659,7 @@ fn test_good_environment() {
             ("XDG_DATA_DIRS", format!("{}/test_files/system0/data:{}/test_files/system1/data:{}/test_files/system2/data:{}/test_files/system3/data", cwd, cwd, cwd, cwd)),
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
             // ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
-        ]));
+        ])));
     assert!(xd.find_data_file("everywhere") != None);
     assert!(xd.find_config_file("everywhere") != None);
     assert!(xd.find_cache_file("everywhere") != None);
@@ -547,10 +669,10 @@ fn test_good_environment() {
 fn test_runtime_bad() {
     std::thread::spawn(move || {
         let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-        let _ = BaseDirectories::with_env("", "", &*make_env(vec![
+        let _ = unwrap(BaseDirectories::with_env("", "", &*make_env(vec![
                 ("HOME", format!("{}/test_files/user", cwd)),
                 ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
-            ]));
+            ])));
     }).join().unwrap_err();
 }
 
@@ -567,10 +689,10 @@ fn test_runtime_good() {
     fs::set_permissions(&test_runtime_dir, perms).unwrap();
 
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+    let xd = unwrap(BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-good", cwd)),
-        ]));
+        ])));
 
     xd.create_runtime_directory("foo").unwrap();
     assert!(path_is_dir("test_files/runtime-good/foo"));
@@ -597,14 +719,14 @@ fn test_runtime_good() {
 #[test]
 fn test_lists() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+    let xd = unwrap(BaseDirectories::with_env("", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
             ("XDG_DATA_DIRS", format!("{}/test_files/system0/data:{}/test_files/system1/data:{}/test_files/system2/data:{}/test_files/system3/data", cwd, cwd, cwd, cwd)),
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system0/config:{}/test_files/system1/config:{}/test_files/system2/config:{}/test_files/system3/config", cwd, cwd, cwd, cwd)),
-        ]));
+        ])));
 
     let files = xd.list_config_files(".");
     let mut files = files.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
@@ -640,10 +762,10 @@ fn test_lists() {
 #[test]
 fn test_prefix() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("myapp", "", &*make_env(vec![
+    let xd = unwrap(BaseDirectories::with_env("myapp", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
-        ]));
+        ])));
     assert_eq!(xd.place_cache_file("cache.db").unwrap(),
                PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
 }
@@ -651,11 +773,11 @@ fn test_prefix() {
 #[test]
 fn test_profile() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-    let xd = BaseDirectories::with_env("myapp", "default_profile", &*make_env(vec![
+    let xd = unwrap(BaseDirectories::with_env("myapp", "default_profile", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
             ("XDG_CONFIG_DIRS", format!("{}/test_files/system1/config", cwd)),
-       ]));
+       ])));
     assert_eq!(xd.find_config_file("system1_config.file").unwrap(),
                // Does *not* include default_profile
                PathBuf::from(&format!("{}/test_files/system1/config/myapp/system1_config.file", cwd)));
