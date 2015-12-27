@@ -264,7 +264,7 @@ impl BaseDirectories
             }));
             let permissions = try!(fs::metadata(runtime_dir).map_err(|e| {
                 Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
-            })).permissions().mode();
+            })).permissions().mode() as u32;
             if permissions & 0o077 != 0 {
                 return Err(Error::new(XdgRuntimeDirInsecure(runtime_dir.clone(),
                                                             Permissions(permissions))));
