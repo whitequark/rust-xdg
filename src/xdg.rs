@@ -37,7 +37,7 @@ use BaseDirectoriesErrorKind::*;
 ///
 /// ```
 /// extern crate xdg;
-/// let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp");
+/// let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp").unwrap();
 /// ```
 ///
 /// To store configuration:
@@ -190,6 +190,7 @@ impl BaseDirectories
     ///
     /// ```rust
     /// let dirs = BaseDirectories::with_profile("program-name", "profile-name")
+    ///                            .unwrap();
     /// dirs.find_data_file("bar.jpg");
     /// dirs.find_config_file("foo.conf");
     /// ```
