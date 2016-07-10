@@ -66,6 +66,7 @@ use BaseDirectoriesErrorKind::*;
 /// The `logo.png` will be searched in the proper locations for
 /// supplementary data files, most likely `~/.local/share/myapp/logo.png`,
 /// then `/usr/local/share/myapp/logo.png` and `/usr/share/myapp/logo.png`.
+#[derive(Debug, Clone)]
 pub struct BaseDirectories {
     shared_prefix: PathBuf,
     user_prefix: PathBuf,
