@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `BaseDirectories` struct in crate `xdg`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, BaseDirectories">
+
+    <title>xdg::BaseDirectories - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>xdg</a></p><script>window.sidebarCurrent = {name: 'BaseDirectories', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>xdg</a>::<wbr><a class='struct' href=''>BaseDirectories</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/xdg/lib.rs.html#71-80' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct BaseDirectories { /* fields omitted */ }</pre><div class='docblock'><p>BaseDirectories allows to look up paths to configuration, data,
+cache and runtime files in well-known locations according to
+the <a href="http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html">X Desktop Group Base Directory specification</a>.</p>
+
+<p>The Base Directory specification defines four kinds of files:</p>
+
+<ul>
+<li><strong>Configuration files</strong> store the application&#39;s settings and
+are often modified during runtime;</li>
+<li><strong>Data files</strong> store supplementary data, such as graphic assets,
+precomputed tables, documentation, or architecture-independent
+source code;</li>
+<li><strong>Cache files</strong> store non-essential, transient data that provides
+a runtime speedup;</li>
+<li><strong>Runtime files</strong> include filesystem objects such are sockets or
+named pipes that are used for communication internal to the application.
+Runtime files must not be accessible to anyone except current user.</li>
+</ul>
+
+<h1 id='examples' class='section-header'><a href='#examples'>Examples</a></h1>
+<p>To configure paths for application <code>myapp</code>:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>xdg</span>;
+<span class='kw'>let</span> <span class='ident'>xdg_dirs</span> <span class='op'>=</span> <span class='ident'>xdg</span>::<span class='ident'>BaseDirectories</span>::<span class='ident'>with_prefix</span>(<span class='string'>&quot;myapp&quot;</span>).<span class='ident'>unwrap</span>();</pre>
+
+<p>To store configuration:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>config_path</span> <span class='op'>=</span> <span class='ident'>xdg_dirs</span>.<span class='ident'>place_config_file</span>(<span class='string'>&quot;config.ini&quot;</span>)
+                          .<span class='ident'>expect</span>(<span class='string'>&quot;cannot create configuration directory&quot;</span>);
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>config_file</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>File</span>::<span class='ident'>create</span>(<span class='ident'>config_path</span>));
+<span class='macro'>try</span><span class='macro'>!</span>(<span class='macro'>write</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>config_file</span>, <span class='string'>&quot;configured = 1&quot;</span>));</pre>
+
+<p>The <code>config.ini</code> file will appear in the proper location for desktop
+configuration files, most likely <code>~/.config/myapp/config.ini</code>.
+The leading directories will be automatically created.</p>
+
+<p>To retrieve supplementary data:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>logo_path</span> <span class='op'>=</span> <span class='ident'>xdg_dirs</span>.<span class='ident'>find_data_file</span>(<span class='string'>&quot;logo.png&quot;</span>)
+                        .<span class='ident'>expect</span>(<span class='string'>&quot;application data not present&quot;</span>);
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>logo_file</span> <span class='op'>=</span> <span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>File</span>::<span class='ident'>open</span>(<span class='ident'>logo_path</span>));
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>logo</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+<span class='macro'>try</span><span class='macro'>!</span>(<span class='ident'>logo_file</span>.<span class='ident'>read_to_end</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>logo</span>));</pre>
+
+<p>The <code>logo.png</code> will be searched in the proper locations for
+supplementary data files, most likely <code>~/.local/share/myapp/logo.png</code>,
+then <code>/usr/local/share/myapp/logo.png</code> and <code>/usr/share/myapp/logo.png</code>.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/xdg/lib.rs.html#174-508' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><span id='new.v' class='invisible'><code>fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a>, <a class='struct' href='../xdg/struct.BaseDirectoriesError.html' title='xdg::BaseDirectoriesError'>BaseDirectoriesError</a>&gt;</code></span></h4>
+<div class='docblock'><p>Reads the process environment, determines the XDG base directories,
+and returns a value that can be used for lookup.
+The following environment variables are examined:</p>
+
+<ul>
+<li><code>HOME</code>; if not set: use the same fallback as <code>std::env::home_dir()</code>;
+if still not available: return an error.</li>
+<li><code>XDG_DATA_HOME</code>; if not set: assumed to be <code>$HOME/.local/share</code>.</li>
+<li><code>XDG_CONFIG_HOME</code>; if not set: assumed to be <code>$HOME/.config</code>.</li>
+<li><code>XDG_CACHE_HOME</code>; if not set: assumed to be <code>$HOME/.cache</code>.</li>
+<li><code>XDG_DATA_DIRS</code>; if not set: assumed to be <code>/usr/local/share:/usr/share</code>.</li>
+<li><code>XDG_CONFIG_DIRS</code>; if not set: assumed to be <code>/etc/xdg</code>.</li>
+<li><code>XDG_RUNTIME_DIR</code>; if not accessible or permissions are not <code>0700</code>:
+record as inaccessible (can be queried with
+<a href="method.has_runtime_directory">has_runtime_directory</a>).</li>
+</ul>
+
+<p>As per specification, if an environment variable contains a relative path,
+the behavior is the same as if it was not set.</p>
+</div><h4 id='method.with_prefix' class='method'><span id='with_prefix.v' class='invisible'><code>fn <a href='#method.with_prefix' class='fnname'>with_prefix</a>&lt;P&gt;(prefix: P) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a>, <a class='struct' href='../xdg/struct.BaseDirectoriesError.html' title='xdg::BaseDirectoriesError'>BaseDirectoriesError</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Same as <a href="#method.new"><code>new()</code></a>, but <code>prefix</code> is implicitly prepended to
+every path that is looked up.</p>
+</div><h4 id='method.with_profile' class='method'><span id='with_profile.v' class='invisible'><code>fn <a href='#method.with_profile' class='fnname'>with_profile</a>&lt;P1, P2&gt;(prefix: P1,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; profile: P2)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a>, <a class='struct' href='../xdg/struct.BaseDirectoriesError.html' title='xdg::BaseDirectoriesError'>BaseDirectoriesError</a>&gt; <span class='where'>where P1: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;, P2: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Same as <a href="#method.with_prefix"><code>with_prefix()</code></a>,
+with <code>profile</code> also implicitly prepended to every path that is looked up,
+but only for user-specific directories.</p>
+
+<p>This allows each user to have mutliple &quot;profiles&quot; with different user-specific data.</p>
+
+<p>For example:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>dirs</span> <span class='op'>=</span> <span class='ident'>BaseDirectories</span>::<span class='ident'>with_profile</span>(<span class='string'>&quot;program-name&quot;</span>, <span class='string'>&quot;profile-name&quot;</span>)
+                           .<span class='ident'>unwrap</span>();
+<span class='ident'>dirs</span>.<span class='ident'>find_data_file</span>(<span class='string'>&quot;bar.jpg&quot;</span>);
+<span class='ident'>dirs</span>.<span class='ident'>find_config_file</span>(<span class='string'>&quot;foo.conf&quot;</span>);</pre>
+
+<p>will find <code>/usr/share/program-name/bar.jpg</code> (without <code>profile-name</code>)
+and <code>~/.config/program-name/profile-name/foo.conf</code>.</p>
+</div><h4 id='method.has_runtime_directory' class='method'><span id='has_runtime_directory.v' class='invisible'><code>fn <a href='#method.has_runtime_directory' class='fnname'>has_runtime_directory</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></span></h4>
+<div class='docblock'><p>Returns <code>true</code> if <code>XDG_RUNTIME_DIR</code> is available, <code>false</code> otherwise.</p>
+</div><h4 id='method.place_config_file' class='method'><span id='place_config_file.v' class='invisible'><code>fn <a href='#method.place_config_file' class='fnname'>place_config_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, returns an absolute path in
+<code>XDG_CONFIG_HOME</code> where a configuration file may be stored.
+Leading directories in the returned path are pre-created;
+if that is not possible, an error is returned.</p>
+</div><h4 id='method.place_data_file' class='method'><span id='place_data_file.v' class='invisible'><code>fn <a href='#method.place_data_file' class='fnname'>place_data_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.place_config_file"><code>place_config_file()</code></a>, but for
+a data file in <code>XDG_DATA_HOME</code>.</p>
+</div><h4 id='method.place_cache_file' class='method'><span id='place_cache_file.v' class='invisible'><code>fn <a href='#method.place_cache_file' class='fnname'>place_cache_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.place_config_file"><code>place_config_file()</code></a>, but for
+a cache file in <code>XDG_CACHE_HOME</code>.</p>
+</div><h4 id='method.place_runtime_file' class='method'><span id='place_runtime_file.v' class='invisible'><code>fn <a href='#method.place_runtime_file' class='fnname'>place_runtime_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.place_config_file"><code>place_config_file()</code></a>, but for
+a runtime file in <code>XDG_RUNTIME_DIR</code>.
+If <code>XDG_RUNTIME_DIR</code> is not available, returns an error.</p>
+</div><h4 id='method.find_config_file' class='method'><span id='find_config_file.v' class='invisible'><code>fn <a href='#method.find_config_file' class='fnname'>find_config_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, returns an absolute path to an existing
+configuration file, or <code>None</code>. Searches <code>XDG_CONFIG_HOME</code> and then
+<code>XDG_CONFIG_DIRS</code>.</p>
+</div><h4 id='method.find_data_file' class='method'><span id='find_data_file.v' class='invisible'><code>fn <a href='#method.find_data_file' class='fnname'>find_data_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, returns an absolute path to an existing
+configuration file, or <code>None</code>. Searches <code>XDG_DATA_HOME</code> and then
+<code>XDG_DATA_DIRS</code>.</p>
+</div><h4 id='method.find_cache_file' class='method'><span id='find_cache_file.v' class='invisible'><code>fn <a href='#method.find_cache_file' class='fnname'>find_cache_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, returns an absolute path to an existing
+configuration file, or <code>None</code>. Searches <code>XDG_CACHE_HOME</code>.</p>
+</div><h4 id='method.find_runtime_file' class='method'><span id='find_runtime_file.v' class='invisible'><code>fn <a href='#method.find_runtime_file' class='fnname'>find_runtime_file</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, returns an absolute path to an existing
+runtime file, or <code>None</code>. Searches <code>XDG_RUNTIME_DIR</code>.
+If <code>XDG_RUNTIME_DIR</code> is not available, returns <code>None</code>.</p>
+</div><h4 id='method.create_config_directory' class='method'><span id='create_config_directory.v' class='invisible'><code>fn <a href='#method.create_config_directory' class='fnname'>create_config_directory</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, returns an absolute path to a configuration
+directory in <code>XDG_CONFIG_HOME</code>. The directory and all directories
+leading to it are created if they did not exist;
+if that is not possible, an error is returned.</p>
+</div><h4 id='method.create_data_directory' class='method'><span id='create_data_directory.v' class='invisible'><code>fn <a href='#method.create_data_directory' class='fnname'>create_data_directory</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.create_config_directory"><code>create_config_directory()</code></a>,
+but for a data directory in <code>XDG_DATA_HOME</code>.</p>
+</div><h4 id='method.create_cache_directory' class='method'><span id='create_cache_directory.v' class='invisible'><code>fn <a href='#method.create_cache_directory' class='fnname'>create_cache_directory</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.create_config_directory"><code>create_config_directory()</code></a>,
+but for a cache directory in <code>XDG_CACHE_HOME</code>.</p>
+</div><h4 id='method.create_runtime_directory' class='method'><span id='create_runtime_directory.v' class='invisible'><code>fn <a href='#method.create_runtime_directory' class='fnname'>create_runtime_directory</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/std/io/error/type.Result.html' title='std::io::error::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.create_config_directory"><code>create_config_directory()</code></a>,
+but for a runtime directory in <code>XDG_RUNTIME_DIR</code>.
+If <code>XDG_RUNTIME_DIR</code> is not available, returns an error.</p>
+</div><h4 id='method.list_config_files' class='method'><span id='list_config_files.v' class='invisible'><code>fn <a href='#method.list_config_files' class='fnname'>list_config_files</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, list absolute paths to all files
+in directories with path <code>path</code> in <code>XDG_CONFIG_HOME</code> and
+<code>XDG_CONFIG_DIRS</code>.</p>
+</div><h4 id='method.list_config_files_once' class='method'><span id='list_config_files_once.v' class='invisible'><code>fn <a href='#method.list_config_files_once' class='fnname'>list_config_files_once</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.list_config_files"><code>list_config_files</code></a>, but
+only the first occurence of every distinct filename is returned.</p>
+</div><h4 id='method.list_data_files' class='method'><span id='list_data_files.v' class='invisible'><code>fn <a href='#method.list_data_files' class='fnname'>list_data_files</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, lists absolute paths to all files
+in directories with path <code>path</code> in <code>XDG_DATA_HOME</code> and
+<code>XDG_DATA_DIRS</code>.</p>
+</div><h4 id='method.list_data_files_once' class='method'><span id='list_data_files_once.v' class='invisible'><code>fn <a href='#method.list_data_files_once' class='fnname'>list_data_files_once</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Like <a href="#method.list_data_files"><code>list_data_files</code></a>, but
+only the first occurence of every distinct filename is returned.</p>
+</div><h4 id='method.list_cache_files' class='method'><span id='list_cache_files.v' class='invisible'><code>fn <a href='#method.list_cache_files' class='fnname'>list_cache_files</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, lists absolute paths to all files
+in directories with path <code>path</code> in <code>XDG_CACHE_HOME</code>.</p>
+</div><h4 id='method.list_runtime_files' class='method'><span id='list_runtime_files.v' class='invisible'><code>fn <a href='#method.list_runtime_files' class='fnname'>list_runtime_files</a>&lt;P&gt;(&amp;self, path: P) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt; <span class='where'>where P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;</span></code></span></h4>
+<div class='docblock'><p>Given a relative path <code>path</code>, lists absolute paths to all files
+in directories with path <code>path</code> in <code>XDG_RUNTIME_DIR</code>.
+If <code>XDG_RUNTIME_DIR</code> is not available, returns an empty <code>Vec</code>.</p>
+</div><h4 id='method.get_data_home' class='method'><span id='get_data_home.v' class='invisible'><code>fn <a href='#method.get_data_home' class='fnname'>get_data_home</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a></code></span></h4>
+<div class='docblock'><p>Returns the user-specific data directory (set by <code>XDG_DATA_HOME</code>).</p>
+</div><h4 id='method.get_config_home' class='method'><span id='get_config_home.v' class='invisible'><code>fn <a href='#method.get_config_home' class='fnname'>get_config_home</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a></code></span></h4>
+<div class='docblock'><p>Returns the user-specific configuration directory (set by
+<code>XDG_CONFIG_HOME</code>).</p>
+</div><h4 id='method.get_cache_home' class='method'><span id='get_cache_home.v' class='invisible'><code>fn <a href='#method.get_cache_home' class='fnname'>get_cache_home</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a></code></span></h4>
+<div class='docblock'><p>Returns the user-specific directory for non-essential (cached) data
+(set by <code>XDG_CACHE_HOME</code>).</p>
+</div><h4 id='method.get_data_dirs' class='method'><span id='get_data_dirs.v' class='invisible'><code>fn <a href='#method.get_data_dirs' class='fnname'>get_data_dirs</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns a preference ordered (preferred to less preferred) list of
+supplementary data directories, ordered by preference (set by
+<code>XDG_DATA_DIRS</code>).</p>
+</div><h4 id='method.get_config_dirs' class='method'><span id='get_config_dirs.v' class='invisible'><code>fn <a href='#method.get_config_dirs' class='fnname'>get_config_dirs</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html' title='std::path::PathBuf'>PathBuf</a>&gt;</code></span></h4>
+<div class='docblock'><p>Returns a preference ordered (preferred to less preferred) list of
+supplementary configuration directories (set by <code>XDG_CONFIG_DIRS</code>).</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/xdg/lib.rs.html#70' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></span></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/xdg/lib.rs.html#70' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class='method'><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../xdg/struct.BaseDirectories.html' title='xdg::BaseDirectories'>BaseDirectories</a></code></span></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class='method'><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div></span></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "xdg";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>
