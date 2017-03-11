@@ -1,17 +1,18 @@
 #![cfg(unix)]
 
-use std::env;
-use std::error;
-use std::ffi::OsString;
 use std::fmt;
-use std::fs;
-use std::io::Result as IoResult;
+use std::convert;
+use std::error;
 use std::io;
+use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::ffi::OsString;
 
 use std::os::unix::fs::PermissionsExt;
 
 use BaseDirectoriesErrorKind::*;
+use BaseDirectoriesError as Error;
 
 /// BaseDirectories allows to look up paths to configuration, data,
 /// cache and runtime files in well-known locations according to
@@ -99,11 +100,13 @@ impl fmt::Debug for BaseDirectoriesError {
 impl error::Error for BaseDirectoriesError {
     fn description(&self) -> &str {
         match self.kind {
-            MissingHomeVariable => "$HOME must be set",
+            HomeMissing => "$HOME must be set",
             XdgRuntimeDirInaccessible(_, _) =>
                 "$XDG_RUNTIME_DIR must be accessible by the current user",
             XdgRuntimeDirInsecure(_, _) =>
                 "$XDG_RUNTIME_DIR must be secure: have permissions 0700",
+            XdgRuntimeDirMissing =>
+                "$XDG_RUNTIME_DIR is not set",
         }
     }
     fn cause(&self) -> Option<&error::Error> {
@@ -117,7 +120,7 @@ impl error::Error for BaseDirectoriesError {
 impl fmt::Display for BaseDirectoriesError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
-            MissingHomeVariable => write!(f, "{}", error::Error::description(self)),
+            HomeMissing => write!(f, "{}", error::Error::description(self)),
             XdgRuntimeDirInaccessible(ref dir, ref error) => {
                 write!(f, "$XDG_RUNTIME_DIR (`{}`) must be accessible \
                            by the current user (error: {})", dir.display(), error)
@@ -126,8 +129,22 @@ impl fmt::Display for BaseDirectoriesError {
                 write!(f, "$XDG_RUNTIME_DIR (`{}`) must be secure: must have \
                            permissions 0o700, got {}", dir.display(), permissions)
             },
+            XdgRuntimeDirMissing => {
+                write!(f, "$XDG_RUNTIME_DIR must be set")
+            },
         }
     }
+}
+
+impl convert::From<BaseDirectoriesError> for io::Error {
+    fn from(error: BaseDirectoriesError) -> io::Error {
+        match error.kind {
+            HomeMissing | XdgRuntimeDirMissing =>
+                io::Error::new(io::ErrorKind::NotFound, error),
+            _ => io::Error::new(io::ErrorKind::Other, error)
+        }
+    }
+
 }
 
 #[derive(Copy, Clone)]
@@ -148,25 +165,27 @@ impl fmt::Display for Permissions {
 
 #[derive(Debug)]
 enum BaseDirectoriesErrorKind {
-    MissingHomeVariable,
+    HomeMissing,
     XdgRuntimeDirInaccessible(PathBuf, io::Error),
     XdgRuntimeDirInsecure(PathBuf, Permissions),
+    XdgRuntimeDirMissing,
 }
 
-impl BaseDirectories
-{
+impl BaseDirectories {
     /// Reads the process environment, determines the XDG base directories,
     /// and returns a value that can be used for lookup.
     /// The following environment variables are examined:
     ///
     ///   * `HOME`; if not set: use the same fallback as `std::env::home_dir()`;
-    ///     if still not available: panic.
+    ///     if still not available: return an error.
     ///   * `XDG_DATA_HOME`; if not set: assumed to be `$HOME/.local/share`.
     ///   * `XDG_CONFIG_HOME`; if not set: assumed to be `$HOME/.config`.
     ///   * `XDG_CACHE_HOME`; if not set: assumed to be `$HOME/.cache`.
     ///   * `XDG_DATA_DIRS`; if not set: assumed to be `/usr/local/share:/usr/share`.
     ///   * `XDG_CONFIG_DIRS`; if not set: assumed to be `/etc/xdg`.
-    ///   * `XDG_RUNTIME_DIR`; if not accessible or permissions are not `0700`: panic.
+    ///   * `XDG_RUNTIME_DIR`; if not accessible or permissions are not `0700`:
+    ///     record as inaccessible (can be queried with
+    ///     [has_runtime_directory](method.has_runtime_directory)).
     ///
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
@@ -213,9 +232,6 @@ impl BaseDirectories
     fn with_env_impl<T: ?Sized>(prefix: &Path, profile: &Path, env_var: &T)
             -> Result<BaseDirectories, BaseDirectoriesError>
             where T: Fn(&str) -> Option<OsString> {
-
-        use BaseDirectoriesError as Error;
-
         fn abspath(path: OsString) -> Option<PathBuf> {
             let path = PathBuf::from(path);
             if path.is_absolute() {
@@ -237,7 +253,7 @@ impl BaseDirectories
             }
         }
 
-        let home = try!(std::env::home_dir().ok_or(Error::new(MissingHomeVariable)));
+        let home = try!(std::env::home_dir().ok_or(Error::new(HomeMissing)));
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .and_then(abspath)
@@ -258,21 +274,6 @@ impl BaseDirectories
         let runtime_dir = env_var("XDG_RUNTIME_DIR")
                               .and_then(abspath); // optional
 
-        // If XDG_RUNTIME_DIR is in the environment but not secure,
-        // do not allow recovery.
-        if let Some(ref runtime_dir) = runtime_dir {
-            try!(fs::read_dir(runtime_dir).map_err(|e| {
-                Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
-            }));
-            let permissions = try!(fs::metadata(runtime_dir).map_err(|e| {
-                Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
-            })).permissions().mode() as u32;
-            if permissions & 0o077 != 0 {
-                return Err(Error::new(XdgRuntimeDirInsecure(runtime_dir.clone(),
-                                                            Permissions(permissions))));
-            }
-        }
-
         let prefix = PathBuf::from(prefix);
         Ok(BaseDirectories {
             user_prefix: prefix.join(profile),
@@ -286,44 +287,64 @@ impl BaseDirectories
         })
     }
 
-    /// Returns `true` if `XDG_RUNTIME_DIR` is available, `false` otherwise.
-    pub fn has_runtime_directory(&self) -> bool {
-        self.runtime_dir.is_some()
+    fn get_runtime_directory(&self) -> Result<&PathBuf, BaseDirectoriesError> {
+        if let Some(ref runtime_dir) = self.runtime_dir {
+            // If XDG_RUNTIME_DIR is in the environment but not secure,
+            // do not allow recovery.
+            try!(fs::read_dir(runtime_dir).map_err(|e| {
+                Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
+            }));
+            let permissions = try!(fs::metadata(runtime_dir).map_err(|e| {
+                Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
+            })).permissions().mode() as u32;
+            if permissions & 0o077 != 0 {
+                Err(Error::new(XdgRuntimeDirInsecure(runtime_dir.clone(),
+                                                     Permissions(permissions))))
+            } else {
+                Ok(&runtime_dir)
+            }
+        } else {
+            Err(Error::new(XdgRuntimeDirMissing))
+        }
     }
 
-    fn get_runtime_directory(&self) -> &PathBuf {
-        self.runtime_dir.as_ref().expect("$XDG_RUNTIME_DIR must be set")
+    /// Returns `true` if `XDG_RUNTIME_DIR` is available, `false` otherwise.
+    pub fn has_runtime_directory(&self) -> bool {
+        match self.get_runtime_directory() {
+            Ok(_) => true,
+            _ => false
+        }
     }
 
     /// Given a relative path `path`, returns an absolute path in
     /// `XDG_CONFIG_HOME` where a configuration file may be stored.
     /// Leading directories in the returned path are pre-created;
     /// if that is not possible, an error is returned.
-    pub fn place_config_file<P>(&self, path: P) -> IoResult<PathBuf>
+    pub fn place_config_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         write_file(&self.config_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a data file in `XDG_DATA_HOME`.
-    pub fn place_data_file<P>(&self, path: P) -> IoResult<PathBuf>
+    pub fn place_data_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         write_file(&self.data_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a cache file in `XDG_CACHE_HOME`.
-    pub fn place_cache_file<P>(&self, path: P) -> IoResult<PathBuf>
+    pub fn place_cache_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         write_file(&self.cache_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a runtime file in `XDG_RUNTIME_DIR`.
-    /// If `XDG_RUNTIME_DIR` is not available, panics.
-    pub fn place_runtime_file<P>(&self, path: P) -> IoResult<PathBuf>
+    /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    pub fn place_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
-        write_file(self.get_runtime_directory(), self.user_prefix.join(path))
+        write_file(try!(self.get_runtime_directory()), self.user_prefix.join(path))
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -354,18 +375,22 @@ impl BaseDirectories
 
     /// Given a relative path `path`, returns an absolute path to an existing
     /// runtime file, or `None`. Searches `XDG_RUNTIME_DIR`.
-    /// If `XDG_RUNTIME_DIR` is not available, panics.
+    /// If `XDG_RUNTIME_DIR` is not available, returns `None`.
     pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
-        read_file(self.get_runtime_directory(), &Vec::new(),
-                  &self.user_prefix, &self.shared_prefix, path.as_ref())
+        if let Ok(runtime_dir) = self.get_runtime_directory() {
+            read_file(runtime_dir, &Vec::new(),
+                      &self.user_prefix, &self.shared_prefix, path.as_ref())
+        } else {
+            None
+        }
     }
 
     /// Given a relative path `path`, returns an absolute path to a configuration
     /// directory in `XDG_CONFIG_HOME`. The directory and all directories
     /// leading to it are created if they did not exist;
     /// if that is not possible, an error is returned.
-    pub fn create_config_directory<P>(&self, path: P) -> IoResult<PathBuf>
+    pub fn create_config_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.config_home,
                          self.user_prefix.join(path))
@@ -373,7 +398,7 @@ impl BaseDirectories
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a data directory in `XDG_DATA_HOME`.
-    pub fn create_data_directory<P>(&self, path: P) -> IoResult<PathBuf>
+    pub fn create_data_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.data_home,
                          self.user_prefix.join(path))
@@ -381,7 +406,7 @@ impl BaseDirectories
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a cache directory in `XDG_CACHE_HOME`.
-    pub fn create_cache_directory<P>(&self, path: P) -> IoResult<PathBuf>
+    pub fn create_cache_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.cache_home,
                          self.user_prefix.join(path))
@@ -389,10 +414,10 @@ impl BaseDirectories
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a runtime directory in `XDG_RUNTIME_DIR`.
-    /// If `XDG_RUNTIME_DIR` is not available, panics.
-    pub fn create_runtime_directory<P>(&self, path: P) -> IoResult<PathBuf>
+    /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    pub fn create_runtime_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
-        create_directory(self.get_runtime_directory(),
+        create_directory(try!(self.get_runtime_directory()),
                          self.user_prefix.join(path))
     }
 
@@ -440,11 +465,15 @@ impl BaseDirectories
 
     /// Given a relative path `path`, lists absolute paths to all files
     /// in directories with path `path` in `XDG_RUNTIME_DIR`.
-    /// If `XDG_RUNTIME_DIR` is not available, panics.
+    /// If `XDG_RUNTIME_DIR` is not available, returns an empty `Vec`.
     pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf>
             where P: AsRef<Path> {
-        list_files(self.get_runtime_directory(), &Vec::new(),
-                   &self.user_prefix, &self.shared_prefix, path.as_ref())
+        if let Ok(runtime_dir) = self.get_runtime_directory() {
+            list_files(runtime_dir, &Vec::new(),
+                       &self.user_prefix, &self.shared_prefix, path.as_ref())
+        } else {
+            Vec::new()
+        }
     }
 
     /// Returns the user-specific data directory (set by `XDG_DATA_HOME`).
@@ -478,7 +507,7 @@ impl BaseDirectories
     }
 }
 
-fn write_file<P>(home: &PathBuf, path: P) -> IoResult<PathBuf>
+fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         where P: AsRef<Path> {
     match path.as_ref().parent() {
         Some(parent) => try!(fs::create_dir_all(home.join(parent))),
@@ -487,7 +516,7 @@ fn write_file<P>(home: &PathBuf, path: P) -> IoResult<PathBuf>
     Ok(PathBuf::from(home.join(path.as_ref())))
 }
 
-fn create_directory<P>(home: &PathBuf, path: P) -> IoResult<PathBuf>
+fn create_directory<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
     try!(fs::create_dir_all(&full_path));
@@ -645,13 +674,12 @@ fn test_good_environment() {
 
 #[test]
 fn test_runtime_bad() {
-    std::thread::spawn(move || {
-        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-        let _ = BaseDirectories::with_env("", "", &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
-                ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
-            ])).unwrap();
-    }).join().unwrap_err();
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
+            ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
+        ])).unwrap();
+    assert!(xd.has_runtime_directory() == false);
 }
 
 #[test]
