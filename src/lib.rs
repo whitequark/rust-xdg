@@ -14,6 +14,9 @@ use std::os::unix::fs::PermissionsExt;
 use BaseDirectoriesErrorKind::*;
 use BaseDirectoriesError as Error;
 
+mod desktop_entries;
+pub use desktop_entries::DesktopEntries;
+
 /// BaseDirectories allows to look up paths to configuration, data,
 /// cache and runtime files in well-known locations according to
 /// the [X Desktop Group Base Directory specification][xdg-basedir].
