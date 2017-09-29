@@ -357,7 +357,7 @@ impl BaseDirectories {
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
-    /// configuration file, or `None`. Searches `XDG_DATA_HOME` and then
+    /// data file, or `None`. Searches `XDG_DATA_HOME` and then
     /// `XDG_DATA_DIRS`.
     pub fn find_data_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
@@ -366,7 +366,7 @@ impl BaseDirectories {
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
-    /// configuration file, or `None`. Searches `XDG_CACHE_HOME`.
+    /// cache file, or `None`. Searches `XDG_CACHE_HOME`.
     pub fn find_cache_file<P>(&self, path: P) -> Option<PathBuf>
             where P: AsRef<Path> {
         read_file(&self.cache_home, &Vec::new(),
