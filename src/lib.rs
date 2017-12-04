@@ -1,4 +1,4 @@
-#![cfg(any(unix, redox))]
+#![cfg(any(unix, target_os = "redox"))]
 
 use std::fmt;
 use std::convert;
