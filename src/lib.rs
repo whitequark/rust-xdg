@@ -356,6 +356,16 @@ impl BaseDirectories {
                   &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
+    /// Given a relative path `path`, returns an iterator yielding absolute
+    /// paths to existing configuration files, in `XDG_CONFIG_DIRS` and
+    /// `XDG_CONFIG_HOME`. Paths are produced in order from lowest priority
+    /// to highest.
+    pub fn find_config_files<P>(&self, path: P) -> FileFindIterator
+            where P: AsRef<Path> {
+        FileFindIterator::new(&self.config_home, &self.config_dirs,
+                    &self.user_prefix, &self.shared_prefix, path.as_ref())
+    }
+
     /// Given a relative path `path`, returns an absolute path to an existing
     /// data file, or `None`. Searches `XDG_DATA_HOME` and then
     /// `XDG_DATA_DIRS`.
@@ -363,6 +373,16 @@ impl BaseDirectories {
             where P: AsRef<Path> {
         read_file(&self.data_home, &self.data_dirs,
                   &self.user_prefix, &self.shared_prefix, path.as_ref())
+    }
+
+    /// Given a relative path `path`, returns an iterator yielding absolute
+    /// paths to existing data files, in `XDG_DATA_DIRS` and
+    /// `XDG_DATA_HOME`. Paths are produced in order from lowest priority
+    /// to highest.
+    pub fn find_data_files<P>(&self, path: P) -> FileFindIterator
+            where P: AsRef<Path> {
+        FileFindIterator::new(&self.data_home, &self.data_dirs,
+                    &self.user_prefix, &self.shared_prefix, path.as_ref())
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -554,6 +574,48 @@ fn read_file(home: &PathBuf, dirs: &Vec<PathBuf>,
     None
 }
 
+use std::iter::Iterator;
+pub struct FileFindIterator {
+    search_dirs: Vec<PathBuf>,
+    position: usize,
+    relpath: PathBuf,
+}
+
+impl FileFindIterator {
+    fn new(home: &PathBuf, dirs: &Vec<PathBuf>,
+           user_prefix: &Path, shared_prefix: &Path, path: &Path)
+           -> FileFindIterator {
+       let mut search_dirs = Vec::new();
+       for dir in dirs {
+           search_dirs.push(dir.join(shared_prefix));
+       }
+       search_dirs.push(home.join(user_prefix));
+       FileFindIterator {
+           search_dirs: search_dirs,
+           position: 0,
+           relpath: path.to_path_buf(),
+       }
+   }
+}
+
+impl Iterator for FileFindIterator {
+    type Item = PathBuf;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let dir = match self.search_dirs.get(self.position) {
+                Some(d) => d,
+                None => return None
+            };
+            self.position += 1;
+            let candidate = dir.join(self.relpath.clone());
+            if path_exists(&candidate) {
+                return Some(candidate)
+            }
+        }
+    }
+}
+
 fn list_files(home: &Path, dirs: &[PathBuf],
               user_prefix: &Path, shared_prefix: &Path, path: &Path)
               -> Vec<PathBuf> {
@@ -670,6 +732,24 @@ fn test_good_environment() {
     assert!(xd.find_data_file("everywhere") != None);
     assert!(xd.find_config_file("everywhere") != None);
     assert!(xd.find_cache_file("everywhere") != None);
+
+    let mut config_files = xd.find_config_files("everywhere");
+    assert_eq!(config_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/system1/config/everywhere", cwd))));
+    assert_eq!(config_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/system2/config/everywhere", cwd))));
+    assert_eq!(config_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/user/config/everywhere", cwd))));
+    assert_eq!(config_files.next(), None);
+
+    let mut data_files = xd.find_data_files("everywhere");
+    assert_eq!(data_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/system1/data/everywhere", cwd))));
+    assert_eq!(data_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/system2/data/everywhere", cwd))));
+    assert_eq!(data_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/user/data/everywhere", cwd))));
+    assert_eq!(data_files.next(), None);
 }
 
 #[test]
