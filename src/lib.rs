@@ -586,7 +586,7 @@ impl FileFindIterator {
            user_prefix: &Path, shared_prefix: &Path, path: &Path)
            -> FileFindIterator {
        let mut search_dirs = Vec::new();
-       for dir in dirs {
+       for dir in dirs.iter().rev() {
            search_dirs.push(dir.join(shared_prefix));
        }
        search_dirs.push(home.join(user_prefix));
@@ -735,18 +735,18 @@ fn test_good_environment() {
 
     let mut config_files = xd.find_config_files("everywhere");
     assert_eq!(config_files.next(),
-        Some(PathBuf::from(format!("{}/test_files/system1/config/everywhere", cwd))));
-    assert_eq!(config_files.next(),
         Some(PathBuf::from(format!("{}/test_files/system2/config/everywhere", cwd))));
+    assert_eq!(config_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/system1/config/everywhere", cwd))));
     assert_eq!(config_files.next(),
         Some(PathBuf::from(format!("{}/test_files/user/config/everywhere", cwd))));
     assert_eq!(config_files.next(), None);
 
     let mut data_files = xd.find_data_files("everywhere");
     assert_eq!(data_files.next(),
-        Some(PathBuf::from(format!("{}/test_files/system1/data/everywhere", cwd))));
-    assert_eq!(data_files.next(),
         Some(PathBuf::from(format!("{}/test_files/system2/data/everywhere", cwd))));
+    assert_eq!(data_files.next(),
+        Some(PathBuf::from(format!("{}/test_files/system1/data/everywhere", cwd))));
     assert_eq!(data_files.next(),
         Some(PathBuf::from(format!("{}/test_files/user/data/everywhere", cwd))));
     assert_eq!(data_files.next(), None);
