@@ -1,6 +1,6 @@
 [package]
 name = "xdg"
-version = "2.1.0"
+version = "2.2.0"
 description = "A library for storing and retrieving files according to XDG Base Directory specification"
 homepage = "https://github.com/whitequark/rust-xdg"
 repository = "https://github.com/whitequark/rust-xdg"
