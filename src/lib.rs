@@ -525,6 +525,11 @@ impl BaseDirectories {
     pub fn get_config_dirs(&self) -> Vec<PathBuf> {
         self.config_dirs.iter().map(|p| p.join(&self.shared_prefix)).collect()
     }
+
+    // Returns the xdg-trash directory, located at `XDG_DATA_HOME/Trash`.
+    pub fn get_trash_dir(&self) -> PathBuf {
+        self.data_home.join("Trash")
+    }
 }
 
 fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
