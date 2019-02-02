@@ -527,6 +527,7 @@ impl BaseDirectories {
     }
 
     // Returns the xdg-trash directory, located at `XDG_DATA_HOME/Trash`.
+    // https://specifications.freedesktop.org/trash-spec/trashspec-1.0.html
     pub fn get_trash_dir(&self) -> PathBuf {
         self.data_home.join("Trash")
     }
