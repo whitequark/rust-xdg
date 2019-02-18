@@ -871,3 +871,25 @@ fn test_profile() {
                // Includes default_profile
                PathBuf::from(&format!("{}/test_files/user/config/myapp/default_profile/user_config.file", cwd)));
 }
+
+/// Ensure that entries in XDG_CONFIG_DIRS can be replaced with symlinks.
+#[test]
+fn test_symlinks() {
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let symlinks_dir = format!("{}/test_files/symlinks", cwd);
+    let config_dir = format!("{}/config", symlinks_dir);
+    let myapp_dir = format!("{}/myapp", config_dir);
+
+    assert!(path_exists(&myapp_dir));
+    assert!(path_exists(&config_dir));
+    assert!(path_exists(&symlinks_dir));
+
+    let xd = BaseDirectories::with_env(
+        "myapp", "", &*make_env(vec![
+            ("HOME", symlinks_dir),
+            ("XDG_CONFIG_HOME", config_dir),
+        ])
+    ).unwrap();
+    assert_eq!(xd.find_config_file("user_config.file").unwrap(),
+               PathBuf::from(&format!("{}/user_config.file", myapp_dir)));
+}
