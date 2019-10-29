@@ -111,7 +111,7 @@ impl error::Error for BaseDirectoriesError {
                 "$XDG_RUNTIME_DIR is not set",
         }
     }
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match self.kind {
             XdgRuntimeDirInaccessible(_, ref e) => Some(e),
             _ => None,
@@ -687,7 +687,7 @@ fn make_relative<P>(path: P) -> PathBuf where P: AsRef<Path> {
 
 #[cfg(test)]
 fn make_env(vars: Vec<(&'static str, String)>) ->
-        Box<Fn(&str)->Option<OsString>> {
+        Box<dyn Fn(&str)->Option<OsString>> {
     return Box::new(move |name| {
         for &(key, ref value) in vars.iter() {
             if key == name { return Some(OsString::from(value)) }
