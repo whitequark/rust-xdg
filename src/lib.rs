@@ -318,6 +318,36 @@ impl BaseDirectories {
         }
     }
 
+    /// Like [`place_config_file()`](#method.place_config_file), but does
+    /// not create any directories.
+    pub fn get_config_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.config_home.join(self.user_prefix.join(path))
+    }
+
+    /// Like [`place_data_file()`](#method.place_data_file), but does
+    /// not create any directories.
+    pub fn get_data_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.data_home.join(self.user_prefix.join(path))
+    }
+
+    /// Like [`place_cache_file()`](#method.place_cache_file), but does
+    /// not create any directories.
+    pub fn get_cache_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.cache_home.join(self.user_prefix.join(path))
+    }
+
+    /// Like [`place_runtime_file()`](#method.place_runtime_file), but does
+    /// not create any directories.
+    /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    pub fn get_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
+            where P: AsRef<Path> {
+        let runtime_dir = try!(self.get_runtime_directory());
+        Ok(runtime_dir.join(self.user_prefix.join(path)))
+    }
+
     /// Given a relative path `path`, returns an absolute path in
     /// `XDG_CONFIG_HOME` where a configuration file may be stored.
     /// Leading directories in the returned path are pre-created;
