@@ -884,6 +884,8 @@ fn test_prefix() {
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
         ])).unwrap();
+    assert_eq!(xd.get_cache_file("cache.db"),
+        PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
     assert_eq!(xd.place_cache_file("cache.db").unwrap(),
                PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
 }
