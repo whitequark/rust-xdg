@@ -891,7 +891,7 @@ fn test_get_file() {
     let path = format!("{}/test_files/user/runtime/", cwd);
     let metadata = fs::metadata(&path).expect("Could not read metadata for runtime directory");
     let mut perms = metadata.permissions();
-    &perms.set_mode(0o700);
+    perms.set_mode(0o700);
     fs::set_permissions(&path, perms);
 
     let file = xd.get_config_file("myapp/user_config.file");
