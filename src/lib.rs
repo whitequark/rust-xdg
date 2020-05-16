@@ -571,7 +571,7 @@ fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
 fn create_directory<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
-    fs::create_dir_all(&full_path);
+    fs::create_dir_all(&full_path)?;
     Ok(full_path)
 }
 
