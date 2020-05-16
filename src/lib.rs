@@ -48,8 +48,8 @@ use BaseDirectoriesError as Error;
 /// ```
 /// let config_path = xdg_dirs.place_config_file("config.ini")
 ///                           .expect("cannot create configuration directory");
-/// let mut config_file = try!(File::create(config_path));
-/// try!(write!(&mut config_file, "configured = 1"));
+/// let mut config_file = File::create(config_path)?;
+/// write!(&mut config_file, "configured = 1")?;
 /// ```
 ///
 /// The `config.ini` file will appear in the proper location for desktop
@@ -61,9 +61,9 @@ use BaseDirectoriesError as Error;
 /// ```
 /// let logo_path = xdg_dirs.find_data_file("logo.png")
 ///                         .expect("application data not present");
-/// let mut logo_file = try!(File::open(logo_path));
+/// let mut logo_file = File::open(logo_path)?;
 /// let mut logo = Vec::new();
-/// try!(logo_file.read_to_end(&mut logo));
+/// logo_file.read_to_end(&mut logo)?;
 /// ```
 ///
 /// The `logo.png` will be searched in the proper locations for
@@ -255,7 +255,7 @@ impl BaseDirectories {
             }
         }
 
-        let home = try!(dirs::home_dir().ok_or(Error::new(HomeMissing)));
+        let home = dirs::home_dir().ok_or(Error::new(HomeMissing))?;
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .and_then(abspath)
@@ -293,12 +293,12 @@ impl BaseDirectories {
         if let Some(ref runtime_dir) = self.runtime_dir {
             // If XDG_RUNTIME_DIR is in the environment but not secure,
             // do not allow recovery.
-            try!(fs::read_dir(runtime_dir).map_err(|e| {
+            fs::read_dir(runtime_dir).map_err(|e| {
                 Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
-            }));
-            let permissions = try!(fs::metadata(runtime_dir).map_err(|e| {
+            })?;
+            let permissions = fs::metadata(runtime_dir).map_err(|e| {
                 Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
-            })).permissions().mode() as u32;
+            })?.permissions().mode() as u32;
             if permissions & 0o077 != 0 {
                 Err(Error::new(XdgRuntimeDirInsecure(runtime_dir.clone(),
                                                      Permissions(permissions))))
@@ -344,7 +344,7 @@ impl BaseDirectories {
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
     pub fn get_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
-        let runtime_dir = try!(self.get_runtime_directory());
+        let runtime_dir = self.get_runtime_directory()?;
         Ok(runtime_dir.join(self.user_prefix.join(path)))
     }
 
@@ -376,7 +376,7 @@ impl BaseDirectories {
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
     pub fn place_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
-        write_file(try!(self.get_runtime_directory()), self.user_prefix.join(path))
+        write_file(self.get_runtime_directory()?, self.user_prefix.join(path))
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -469,7 +469,7 @@ impl BaseDirectories {
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
     pub fn create_runtime_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
-        create_directory(try!(self.get_runtime_directory()),
+        create_directory(self.get_runtime_directory()?,
                          self.user_prefix.join(path))
     }
 
@@ -562,8 +562,8 @@ impl BaseDirectories {
 fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         where P: AsRef<Path> {
     match path.as_ref().parent() {
-        Some(parent) => try!(fs::create_dir_all(home.join(parent))),
-        None => try!(fs::create_dir_all(home)),
+        Some(parent) => fs::create_dir_all(home.join(parent))?,
+        None => fs::create_dir_all(home)?,
     }
     Ok(PathBuf::from(home.join(path.as_ref())))
 }
@@ -571,7 +571,7 @@ fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
 fn create_directory<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
-    try!(fs::create_dir_all(&full_path));
+    fs::create_dir_all(&full_path);
     Ok(full_path)
 }
 
