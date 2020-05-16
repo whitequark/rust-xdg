@@ -878,6 +878,30 @@ fn test_lists() {
 }
 
 #[test]
+fn test_get_file() {
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
+            ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
+            ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
+            ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
+            ("XDG_RUNTIME_DIR", format!("{}/test_files/user/runtime", cwd)),
+        ])).unwrap();
+
+    let file = xd.get_config_file("myapp/user_config.file");
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/config/myapp/user_config.file", cwd)));
+
+    let file = xd.get_data_file("user_data.file");
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/data/user_data.file", cwd)));
+
+    let file = xd.get_cache_file("user_cache.file");
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/cache/user_cache.file", cwd)));
+
+    let file = xd.get_runtime_file("user_runtime.file").unwrap();
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/runtime/user_runtime.file", cwd)));
+}
+
+#[test]
 fn test_prefix() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env("myapp", "", &*make_env(vec![
