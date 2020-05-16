@@ -318,6 +318,36 @@ impl BaseDirectories {
         }
     }
 
+    /// Like [`place_config_file()`](#method.place_config_file), but does
+    /// not create any directories.
+    pub fn get_config_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.config_home.join(self.user_prefix.join(path))
+    }
+
+    /// Like [`place_data_file()`](#method.place_data_file), but does
+    /// not create any directories.
+    pub fn get_data_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.data_home.join(self.user_prefix.join(path))
+    }
+
+    /// Like [`place_cache_file()`](#method.place_cache_file), but does
+    /// not create any directories.
+    pub fn get_cache_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.cache_home.join(self.user_prefix.join(path))
+    }
+
+    /// Like [`place_runtime_file()`](#method.place_runtime_file), but does
+    /// not create any directories.
+    /// If `XDG_RUNTIME_DIR` is not available, returns an error.
+    pub fn get_runtime_file<P>(&self, path: P) -> io::Result<PathBuf>
+            where P: AsRef<Path> {
+        let runtime_dir = try!(self.get_runtime_directory());
+        Ok(runtime_dir.join(self.user_prefix.join(path)))
+    }
+
     /// Given a relative path `path`, returns an absolute path in
     /// `XDG_CONFIG_HOME` where a configuration file may be stored.
     /// Leading directories in the returned path are pre-created;
@@ -848,12 +878,44 @@ fn test_lists() {
 }
 
 #[test]
+fn test_get_file() {
+    let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+    let xd = BaseDirectories::with_env("", "", &*make_env(vec![
+            ("HOME", format!("{}/test_files/user", cwd)),
+            ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
+            ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
+            ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
+            ("XDG_RUNTIME_DIR", format!("{}/test_files/user/runtime", cwd)),
+        ])).unwrap();
+    
+    let path = format!("{}/test_files/user/runtime/", cwd);
+    let metadata = fs::metadata(&path).expect("Could not read metadata for runtime directory");
+    let mut perms = metadata.permissions();
+    perms.set_mode(0o700);
+    fs::set_permissions(&path, perms);
+
+    let file = xd.get_config_file("myapp/user_config.file");
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/config/myapp/user_config.file", cwd)));
+
+    let file = xd.get_data_file("user_data.file");
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/data/user_data.file", cwd)));
+
+    let file = xd.get_cache_file("user_cache.file");
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/cache/user_cache.file", cwd)));
+
+    let file = xd.get_runtime_file("user_runtime.file").unwrap();
+    assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/runtime/user_runtime.file", cwd)));
+}
+
+#[test]
 fn test_prefix() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env("myapp", "", &*make_env(vec![
             ("HOME", format!("{}/test_files/user", cwd)),
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
         ])).unwrap();
+    assert_eq!(xd.get_cache_file("cache.db"),
+        PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
     assert_eq!(xd.place_cache_file("cache.db").unwrap(),
                PathBuf::from(&format!("{}/test_files/user/cache/myapp/cache.db", cwd)));
 }
