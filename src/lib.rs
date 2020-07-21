@@ -1,6 +1,13 @@
 #![cfg(any(unix, target_os = "redox"))]
 
 extern crate dirs;
+extern crate regex;
+extern crate ini;
+extern crate which;
+
+pub mod desktop_entry;
+
+pub use crate::desktop_entry::{DesktopFile,DesktopEntry};
 
 use std::fmt;
 use std::convert;
@@ -122,7 +129,7 @@ impl error::Error for BaseDirectoriesError {
 impl fmt::Display for BaseDirectoriesError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
-            HomeMissing => write!(f, "{}", error::Error::description(self)),
+            HomeMissing => write!(f, "{}", self.to_string()),
             XdgRuntimeDirInaccessible(ref dir, ref error) => {
                 write!(f, "$XDG_RUNTIME_DIR (`{}`) must be accessible \
                            by the current user (error: {})", dir.display(), error)
@@ -878,6 +885,7 @@ fn test_lists() {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn test_get_file() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env("", "", &*make_env(vec![

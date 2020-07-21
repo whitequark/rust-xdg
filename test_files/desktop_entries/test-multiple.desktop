@@ -1,0 +1,19 @@
+[Desktop Entry]
+Name=foo
+Comment=some foo
+GenericName=foo bar
+Exec=sh
+TryExec=/usr/bin/sh
+Icon=foo_icon
+Type=Application
+StartupNotify=false
+StartupWMClass=Code
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=text/plain;inode/directory;
+Actions=new-empty-window;
+Keywords=vscode;
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=/usr/bin/foo --no-sandbox --new-window %F
+Icon=com.visualstudio.code
