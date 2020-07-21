@@ -2,7 +2,7 @@
 Name=foo
 Comment=some foo
 GenericName=foo bar
-Exec=sh
+Exec=cargo
 TryExec=/usr/bin/sh
 Icon=foo_icon
 Type=Application

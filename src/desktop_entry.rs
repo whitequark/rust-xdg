@@ -185,7 +185,7 @@ impl DesktopEntry {
 
     fn check_try_exec(&self) -> Result<(), String> {
         if let Some(try_exec) = &self.try_exec {
-            let err = "Could not find".to_string() + &try_exec;
+            let err = format!("Could not find {}", try_exec);
             return which::which(try_exec).and(Ok(())).or(Err(err))
         }
         Ok(())
