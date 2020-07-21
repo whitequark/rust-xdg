@@ -9,6 +9,7 @@
 use regex::Regex;
 use ini::Ini;
 use std::collections::HashMap;
+use std::fmt;
 
 type LocaleString = String;
 type IconString = String;
@@ -83,8 +84,23 @@ pub struct DesktopEntry {
     pub prefers_non_default_gpu: Option<bool>,
 }
 
+// TODO Find a better type
+#[derive(Debug)]
+pub struct Error(Vec<String>);
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let message = self.0.join(" ");
+        write!(f, "{}", message)
+    }
+}
+
+impl std::error::Error for Error {}
+
+type Result<T> = std::result::Result<T, Error>;
+
 impl DesktopEntry {
-    fn from_hash_map(section: String, hash: &HashMap<String, String>) -> Self {
+    fn from_hash_map(section: String, hash: &HashMap<String, String>) -> Result<Self> {
         use std::str::FromStr;
         fn convert_str_strings(s: &str) -> Strings {
             s.split(";").map(|x| x.to_string()).filter(|x| x.len() > 0 ).collect::<Vec<String>>()
@@ -140,22 +156,23 @@ impl DesktopEntry {
             url,
             prefers_non_default_gpu,
         };
-        desktop_entry
+        desktop_entry.validate()?;
+        Ok(desktop_entry)
     }
 
-    fn check_not_show_in(&self) -> Result<(), String> {
-        let mut warning = String::new();
+    fn check_not_show_in(&self) -> Result<()> {
+        let mut warning: Vec<String> = vec!();
         if let Some(items) = &self.not_show_in {
             let valid = ["GNOME", "KDE", "LXDE", "MATE", "Razor", "ROX", "TDE", "Unity",
                          "XFCE", "Old"];
             for item in items {
                 let starts_with = item.starts_with("X-");
                 if !valid.contains(&item.as_str()) && !starts_with {
-                    warning += &format!("'{}' is not a registered OnlyShowIn value", item);
+                    warning.push(format!("'{}' is not a registered OnlyShowIn value", item));
                 }
             }
             if warning.len() > 0 {
-                return Err(warning)
+                return Err(Error(warning))
             } else {
                 return Ok(())
             }
@@ -163,19 +180,19 @@ impl DesktopEntry {
         Ok(())
     }
 
-    fn check_only_show_in(&self) -> Result<(), String> {
-        let mut warning = String::new();
+    fn check_only_show_in(&self) -> Result<()> {
+        let mut warning: Strings = vec!();
         if let Some(items) = &self.only_show_in {
             let valid = ["GNOME", "KDE", "LXDE", "MATE", "Razor", "ROX", "TDE", "Unity",
                          "XFCE", "Old"];
             for item in items {
                 let starts_with = item.starts_with("X-");
                 if !valid.contains(&item.as_str()) && !starts_with {
-                    warning += &format!("'{}' is not a registered OnlyShowIn value", item);
+                    warning.push(format!("'{}' is not a registered OnlyShowIn value" , item));
                 }
             }
             if warning.len() > 0 {
-                return Err(warning)
+                return Err(Error(warning))
             } else {
                 return Ok(())
             }
@@ -183,83 +200,82 @@ impl DesktopEntry {
         Ok(())
     }
 
-    fn check_try_exec(&self) -> Result<(), String> {
+    fn check_try_exec(&self) -> Result<()> {
         if let Some(try_exec) = &self.try_exec {
-            let err = format!("Could not find {}", try_exec);
-            return which::which(try_exec).and(Ok(())).or(Err(err))
+            let err: Strings = vec!(format!("Could not find {}", try_exec));
+            return which::which(try_exec).and(Ok(())).or(Err(Error(err)))
         }
         Ok(())
     }
 
-    fn check_group(&self) -> Result<(), String>{
+    fn check_group(&self) -> Result<()> {
         let re1 = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$").unwrap();
         let re2 = Regex::new(r"^X-").unwrap();
         let group: &str = &self.entry_type;
-        let mut err = String::new();
+        let mut err: Vec<String> = vec!();
         if ! (group == DEFAULT_GROUP || re1.is_match(group) || re2.is_match(group) && group.is_ascii()) {
-            err += "Invalid Group name: ";
-            err += group;
+            err.push(format!("Invalid Group name: {}", group));
         } else if self.only_show_in.is_some() && self.not_show_in.is_some() {
-            err += "Group may either have OnlyShowIn or NotShowIn, but not both";
+            err.push("Group may either have OnlyShowIn or NotShowIn, but not both".to_string());
         }
         if err.len() > 0 {
-            Err(err)
+            Err(Error(err))
         } else {
             Ok(())
         }
     }
 
-    fn check_extras(&self) -> Result<(), String>{
+    fn is_default_grop(&self) -> bool {
+        // TODO verify there are no more cases
+        let group: &str = &self.entry_type;
+        if group == DEFAULT_GROUP {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn check_extras(&self) -> Result<()>{
         let group = &self.entry_type;
-        let mut err = String::new();
+        let mut err: Strings = vec!();
+
 
         if group == "KDE Desktop Entry" {
-            err += "[KDE Desktop Entry] Header is deprecated";
+            err.push("[KDE Desktop Entry] Header is deprecated".to_string());
         }
-        if self.type_string.is_none() {
-            err += "Key 'Type' is missing";
+        if self.type_string.is_none() && self.is_default_grop() {
+            err.push("Key 'Type' is missing".to_string());
         }
         if self.name.is_none() {
-            err += "Key 'Name' is missing";
+            err.push("Key 'Name' is missing".to_string());
         }
 
         if err.len() > 0 {
-            Err(err)
+            Err(Error(err))
         } else {
             Ok(())
         }
     }
 
-    fn check_keys(&self, filename: &str) -> Result<(), String> {
-        use std::ffi::OsStr;
-        use std::path::Path;
-
-        let mut warnings = String::new();
-        let file_ext = Path::new(filename)
-            .extension()
-            .and_then(OsStr::to_str).unwrap();
+    fn check_keys(&self) -> Result<()> {
+        let mut warnings: Strings = vec!();
         if let Some(etype) = &self.type_string {
             if etype == "ServiceType" || etype == "Service" || etype == "FSDevice" {
-                warnings += &format!("Type={} is a KDE extension", etype);
+                warnings.push(format!("Type={} is a KDE extension", etype));
             } else if etype == "MimeType" {
-                warnings += "Type=MimeType is deprecated";
+                warnings.push("Type=MimeType is deprecated".to_string());
             } else if !(etype == "Application" || etype == "Link" || etype == "Directory") {
-                warnings += &format!("Value of key 'Type' must be Application, Link or Directory, but is {}", etype)
+                warnings.push(format!("Value of key 'Type' must be Application, Link or Directory, but is {}", etype))
             };
 
-            if file_ext == ".directory" && !(etype == "Directory") {
-                warnings += &format!("File extension is .directory, but Type is {}", etype);
-            } else if file_ext == ".desktop" && etype == "Directory" {
-                warnings += "Files with Type=Directory should have the extension .directory";
-            }
             if etype == "Application" {
                 if self.exec.is_none() {
-                    warnings += "Type=Application needs 'Exec' key";
+                    warnings.push("Type=Application needs 'Exec' key".to_string());
                 }
             }
             if etype == "Link" {
                 if self.url.is_none() {
-                    warnings += "Type=Link needs 'URL' key";
+                    warnings.push("Type=Link needs 'URL' key".to_string());
                 }
             }
         }
@@ -273,19 +289,26 @@ impl DesktopEntry {
         }
 
         if warnings.len() > 0 {
-            Err(warnings)
+            Err(Error(warnings))
         } else {
             Ok(())
         }
     }
 
     /// Validates the group, the error `Err(error)` contains the warnings.
-    pub fn validate(&self) -> Result<(), String> {
-        todo!();
+    pub fn validate(&self) -> Result<()> {
+        &self.check_keys()?;
+        &self.check_group()?;
+        &self.check_extras()?;
+        &self.check_try_exec()?;
+        &self.check_not_show_in()?;
+        &self.check_only_show_in()?;
+        Ok(())
     }
 }
 
 impl DesktopFile {
+
     fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
         let i = Ini::load_from_file(ini).unwrap();
         let mut result = vec!();
@@ -299,27 +322,28 @@ impl DesktopFile {
         result
     }
 
-    fn from_hash_map(hash: &Vec<(String, HashMap<String, String>)>, filename: &str) -> Self {
+    fn from_hash_map(hash: &Vec<(String, HashMap<String, String>)>, filename: &str) -> Result<Self> {
         let mut groups = vec!();
         for (entry_name, entry) in hash.iter() {
-            groups.push(DesktopEntry::from_hash_map(entry_name.into(), entry));
+            groups.push(DesktopEntry::from_hash_map(entry_name.into(), entry)?);
         }
         let desktop_file = Self {
             filename: filename.into(),
             groups,
         };
-        desktop_file
+        desktop_file.check_extension()?;
+        desktop_file.validate()?;
+        Ok(desktop_file)
     }
 
     /// Load a `DesktopFile` from a file `filename`.
-    pub fn from_file(filename: &str) -> Option<Self> {
+    pub fn from_file(filename: &str) -> Result<Self> {
         let hash = Self::load_ini(filename);
         let desktop_file = Self::from_hash_map(&hash, filename);
-        // TODO this should not load if there is any issue.
-        Some(desktop_file)
+        desktop_file
     }
 
-    fn check_extension(&self) -> Result<(), String> {
+    fn check_extension(&self) -> Result<()> {
         use std::path::Path;
         use std::ffi::OsStr;
 
@@ -338,6 +362,13 @@ impl DesktopFile {
             },
         };
 
+        let etype = &self.get_default_group().unwrap().type_string.unwrap();
+        if extension == ".directory" && !(etype == "Directory") {
+            err += &format!("File extension is .directory, but Type is {}", etype);
+        } else if extension == ".desktop" && etype == "Directory" {
+            err += "Files with Type=Directory should have the extension .directory";
+        }
+
         Ok(())
     }
 
@@ -347,15 +378,9 @@ impl DesktopFile {
         Some(self.groups[0].clone())
     }
 
-    pub fn validate(&self) -> Result<(), String> {
-        // TODO Improve errors
-        let default_group = &self.get_default_group().unwrap();
-        self.check_extension()?;
-        default_group.check_keys(&self.filename)?;
+    pub fn validate(&self) -> Result<()> {
         for group in &self.groups {
-            group.check_group()?;
-            group.check_extras()?;
-            group.check_try_exec()?;
+            group.validate()?;
         }
         Ok(())
     }
@@ -394,7 +419,7 @@ mod test {
         let result = default_group.check_try_exec();
         let sec_group = &desktop_file.groups[1];
         let result2 = sec_group.check_try_exec().is_err();
-        assert_eq!(result, Ok(()));
+        assert_eq!(result.is_ok(), true);
         assert_eq!(result2, false);
     }
 
@@ -404,11 +429,9 @@ mod test {
         let desktop_file = DesktopFile::from_file(filename).unwrap();
         let groups = desktop_file.groups;
         let default_group = groups.get(0).unwrap();
-        assert_eq!(default_group.check_group(), Ok(()));
+        assert_eq!(default_group.check_group().is_ok(), true);
         let filename ="test_files/desktop_entries/fail.desktop";
-        let desktop_file = DesktopFile::from_file(filename).unwrap();
-        let groups = desktop_file.groups;
-        let default_group = groups.get(0).unwrap();
-        assert_eq!(default_group.check_group().is_err(), true);
+        let desktop_file = DesktopFile::from_file(filename);
+        assert_eq!(desktop_file.is_err(), true);
     }
 }
