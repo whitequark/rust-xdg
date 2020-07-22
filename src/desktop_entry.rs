@@ -4,6 +4,8 @@
 //! [xdg-desktop-entry]: https://specifications.freedesktop.org/desktop-entry-spec/latest/
 //!
 
+// TODO Add locale string support
+// TODO Add custom X- groups support
 use regex::Regex;
 use ini::Ini;
 use std::collections::HashMap;
@@ -27,7 +29,7 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 /// use xdg::desktop_entry::DesktopFile;
 ///
 /// let desktop_file = DesktopFile::from_file("test_files/desktop_entries/test.desktop").unwrap();
-/// let name = desktop_file.get_default_group().unwrap().name;
+/// let name = desktop_file.get_name().ok();
 ///
 /// assert_eq!(name, Some("Foo".to_string()));
 /// ```
@@ -97,6 +99,12 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let message = self.0.join(" ");
         write!(f, "{}", message)
+    }
+}
+
+impl From<&str> for Error {
+    fn from(error: &str) -> Self {
+        Error(vec!(error.to_string()))
     }
 }
 
@@ -230,6 +238,21 @@ impl DesktopEntry {
         }
     }
 
+    fn check_categories(&self) -> Result<()> {
+        let main = ["AudioVideo", "Audio", "Video", "Development", "Education", "Game", "Graphics", "Network", "Office", "Science", "Settings", "System", "Utility"];
+        let additional = ["Building", "Debugger", "IDE", "GUIDesigner", "Profiling", "RevisionControl", "Translation", "Calendar", "ContactManagement", "Database", "Dictionary", "Chart", "Email", "Finance", "FlowChart", "PDA", "ProjectManagement", "Presentation", "Spreadsheet", "WordProcessor", "2DGraphics", "VectorGraphics", "RasterGraphics", "3DGraphics", "Scanning", "OCR", "Photography", "Publishing", "Viewer", "TextTools", "DesktopSettings", "HardwareSettings", "Printing", "PackageManager", "Dialup", "InstantMessaging", "Chat", "IRCClient", "Feed", "FileTransfer", "HamRadio", "News", "P2P", "RemoteAccess", "Telephony", "TelephonyTools", "VideoConference", "WebBrowser", "WebDevelopment", "Midi", "Mixer", "Sequencer", "Tuner", "TV", "AudioVideoEditing", "Player", "Recorder", "DiscBurning", "ActionGame", "AdventureGame", "ArcadeGame", "BoardGame", "BlocksGame", "CardGame", "KidsGame", "LogicGame", "RolePlaying", "Shooter", "Simulation", "SportsGame", "StrategyGame", "Art", "Construction", "Music", "Languages", "ArtificialIntelligence", "Astronomy", "Biology", "Chemistry", "ComputerScience", "DataVisualization", "Economy", "Electricity", "Geography", "Geology", "Geoscience", "History", "Humanities", "ImageProcessing", "Literature", "Maps", "Math", "NumericalAnalysis", "MedicalSoftware", "Physics", "Robotics", "Spirituality", "Sports", "ParallelComputing", "Amusement", "Archiving", "Compression", "Electronics", "Emulator", "Engineering", "FileTools", "FileManager", "TerminalEmulator", "Filesystem", "Monitor", "Security", "Accessibility", "Calculator", "Clock", "TextEditor", "Documentation", "Adult", "Core", "KDE", "GNOME", "XFCE", "GTK", "Qt", "Motif", "Java", "ConsoleOnly"];
+        if let Some(categories) = &self.categories {
+            let n_main_categories = categories.iter().filter(|x| main.contains(&x.as_str()));
+            if n_main_categories.count() == 0 {
+                return Err(Error::from("Missing main category"))
+            }
+            let invalid_categories = categories.iter().filter(|x| !main.contains(&x.as_str()) && !additional.contains(&x.as_str()));
+            let x: Vec<String> = invalid_categories.map(|x| format!("{} is not a registered Category", x)).collect();
+            return Err(Error(x))
+        }
+        Ok(())
+    }
+
     fn is_default_grop(&self) -> bool {
         // TODO verify there are no more cases
         let group: &str = &self.entry_type;
@@ -308,11 +331,18 @@ impl DesktopEntry {
         &self.check_try_exec()?;
         &self.check_not_show_in()?;
         &self.check_only_show_in()?;
+        &self.check_categories()?;
         Ok(())
     }
 }
 
 impl DesktopFile {
+
+    pub fn get_name(&self) -> Result<String> {
+        let err = Error(vec!("Could not read default group".to_string()));
+        let err2 = Error(vec!("Could not read name".to_string()));
+        self.get_default_group().ok_or(err)?.name.ok_or(err2)
+    }
 
     fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
         let i = Ini::load_from_file(ini).unwrap();
@@ -327,7 +357,7 @@ impl DesktopFile {
         result
     }
 
-    /// Loads a desktop entry from a string
+    /// Loads a desktop entry from a string.
     ///
     /// # Example
     ///
@@ -404,12 +434,13 @@ impl DesktopFile {
         Ok(())
     }
 
-    /// Get the group with header "Desktop Entry"
+    /// Get the group with header "Desktop Entry".
     pub fn get_default_group(&self) -> Option<DesktopEntry> {
         // TODO Improve this function
         Some(self.groups[0].clone())
     }
 
+    /// Validates the contents of a desktop entry. The error enum contains warnings.
     pub fn validate(&self) -> Result<()> {
         for group in &self.groups {
             group.validate()?;
