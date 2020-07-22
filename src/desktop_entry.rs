@@ -4,17 +4,50 @@
 //! [xdg-desktop-entry]: https://specifications.freedesktop.org/desktop-entry-spec/latest/
 //!
 
-// TODO Add locale string support
 // TODO Add custom X- groups support
 use ini::Ini;
 use regex::Regex;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::fmt;
 
-type LocaleString = String;
 type IconString = String;
 type Strings = Vec<String>;
-type LocaleStrings = Vec<LocaleString>;
+
+#[derive(Clone)]
+enum LocaleLang {
+    Default,
+    Lang(String),
+}
+
+#[derive(Clone)]
+pub struct Locale {
+    lang: LocaleLang,
+    value: String,
+}
+
+#[derive(Clone)]
+pub struct Locales {
+    lang: LocaleLang,
+    values: Strings,
+}
+
+type LocaleString = Vec<Locale>;
+type LocaleStrings = Vec<Locales>;
+
+impl TryFrom<Locales> for Locale {
+    type Error = Error;
+    fn try_from(locales: Locales) -> Result<Self> {
+        if locales.values.is_empty() {
+            Err(Error::from("Could not conver locales to locale"))
+        } else {
+            Ok(Self {
+                value: locales.values[0].clone(),
+                lang: locales.lang,
+            })
+        }
+    }
+}
 
 const DEFAULT_GROUP: &str = "Desktop Entry";
 
@@ -62,7 +95,7 @@ pub struct DesktopFile {
 ///
 /// [xdg-keys]: https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html
 ///
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DesktopEntry {
     pub entry_type: String,
     pub type_string: Option<String>, // type is a reserver keyword
@@ -104,67 +137,67 @@ impl fmt::Display for Error {
 
 impl From<&str> for Error {
     fn from(error: &str) -> Self {
-        Error(vec![error.to_string()])
+        Error::from(error.to_string())
     }
 }
 
+impl From<String> for Error {
+    fn from(error: String) -> Self {
+        Error(vec![error])
+    }
+}
 impl std::error::Error for Error {}
 
 type Result<T> = std::result::Result<T, Error>;
 
 impl DesktopEntry {
-    fn from_hash_map(section: String, hash: &HashMap<String, String>) -> Result<Self> {
+    fn from_hash_map(section: String, hashmap: &HashMap<String, String>) -> Result<Self> {
         use std::str::FromStr;
-        fn convert_str_strings(s: &str) -> Strings {
-            s.split(";")
-                .map(|x| x.to_string())
-                .filter(|x| x.len() > 0)
-                .collect::<Vec<String>>()
-        }
-        let type_string = hash.get("Type").map(|x| x.to_string());
-        let version = hash.get("Version").map(|x| x.to_string());
-        let name = hash.get("Name").map(|x| x.to_string());
-        let generic_name = hash.get("GenericName").map(|x| x.to_string());
-        let no_display = hash
+
+        let type_string = hashmap.get("Type").map(|x| x.to_string());
+        let version = hashmap.get("Version").map(|x| x.to_string());
+        let name = locale_string_from_hashmap("Name", hashmap);
+        let generic_name = locale_string_from_hashmap("GenericName", hashmap);
+        let no_display = hashmap
             .get("NoDisplay")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let comment = hash.get("Comment").map(|x| x.to_string());
-        let icon = hash.get("Icon").map(|x| x.to_string());
-        let hidden = hash
+        let comment = locale_string_from_hashmap("Comment", hashmap);
+        let icon = hashmap.get("Icon").map(|x| x.to_string());
+        let hidden = hashmap
             .get("Hidden")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let only_show_in = hash.get("OnlyShowIn").map(|x| convert_str_strings(x));
-        let not_show_in = hash.get("NotShowIn").map(|x| convert_str_strings(x));
-        let dbus_activatable = hash
+        let only_show_in = hashmap.get("OnlyShowIn").map(|x| parse_strings(x));
+        let not_show_in = hashmap.get("NotShowIn").map(|x| parse_strings(x));
+        let dbus_activatable = hashmap
             .get("DBusActivatable")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let try_exec = hash.get("TryExec").map(|x| x.to_string());
-        let exec = hash.get("Exec").map(|x| x.to_string());
-        let path = hash.get("Path").map(|x| x.to_string());
-        let terminal = hash
+        let try_exec = hashmap.get("TryExec").map(|x| x.to_string());
+        let exec = hashmap.get("Exec").map(|x| x.to_string());
+        let path = hashmap.get("Path").map(|x| x.to_string());
+        let terminal = hashmap
             .get("Terminal")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let actions = hash.get("Actions").map(|x| convert_str_strings(x));
-        let mime_type = hash.get("MimeType").map(|x| convert_str_strings(x));
-        let categories = hash.get("Categories").map(|x| convert_str_strings(x));
-        let implements = hash.get("Implements").map(|x| convert_str_strings(x));
-        let keywords = hash.get("Keywords").map(|x| convert_str_strings(x));
-        let startup_notify = hash
+        let actions = hashmap.get("Actions").map(|x| parse_strings(x));
+        let mime_type = hashmap.get("MimeType").map(|x| parse_strings(x));
+        let categories = hashmap.get("Categories").map(|x| parse_strings(x));
+        let implements = hashmap.get("Implements").map(|x| parse_strings(x));
+        let keywords = locale_strings_from_hashmap("Keywords", hashmap);
+        let startup_notify = hashmap
             .get("StartupNotify")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let startup_wm_class = hash.get("StartupWMClass").map(|x| x.to_string());
-        let url = hash.get("URL").map(|x| x.to_string());
-        let prefers_non_default_gpu = hash
+        let startup_wm_class = hashmap.get("StartupWMClass").map(|x| x.to_string());
+        let url = hashmap.get("URL").map(|x| x.to_string());
+        let prefers_non_default_gpu = hashmap
             .get("PrefersNonDefaultGPU")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let desktop_entry = Self {
-            entry_type: section,
+        let desktop_entry = DesktopEntry {
+            entry_type: section.to_string(),
             type_string,
             version,
             name,
@@ -535,7 +568,6 @@ impl fmt::Display for DesktopEntry {
             };
         };
         append_string(&self.type_string, "Type");
-        append_string(&self.name, "Name");
         append_string(&self.version, "Version");
         append_string(&self.exec, "Exec");
         append_string(&self.path, "Path");
@@ -544,12 +576,27 @@ impl fmt::Display for DesktopEntry {
         append_string(&self.path, "Path");
         append_string(&self.try_exec, "TryExec");
 
+        // Icon strings
+        append_string(&self.icon, "Icon");
+
         // Locale strings
+        let mut append_string = |opt: &Option<LocaleString>, key: &str| {
+            if let Some(locale_string) = opt {
+                for locale in locale_string.iter() {
+                    let value = locale.value.clone();
+                    match &locale.lang {
+                        LocaleLang::Lang(lang) => {
+                            string += &format!("\n{}[{}]={}", key, lang, value)
+                        }
+                        _ => string += &format!("\n{}={}", key, value),
+                    }
+                }
+            };
+        };
+        append_string(&self.name, "Name");
         append_string(&self.generic_name, "GenericName");
         append_string(&self.comment, "Comment");
 
-        // Icon strings
-        append_string(&self.icon, "Icon");
         let mut append_bool = |opt: &Option<bool>, key: &str| {
             if let Some(s) = opt {
                 string += "\n";
@@ -584,10 +631,25 @@ impl fmt::Display for DesktopEntry {
         append_strings(&self.implements, "Implements");
 
         // Locale strings.
+        let mut append_strings = |opt: &Option<LocaleStrings>, key: &str| {
+            if let Some(locale_strings) = opt {
+                for locale in locale_strings.iter() {
+                    let values = locale.values.join(";");
+                    match &locale.lang {
+                        LocaleLang::Lang(lang) => {
+                            string += &format!("\n{}[{}]={};", key, lang, values)
+                        }
+                        _ => string += &format!("\n{}={}", key, values),
+                    }
+                }
+            };
+        };
         append_strings(&self.keywords, "Keywords");
+
         write!(f, "{}", string)
     }
 }
+
 /// Writes the contents of a `DesktopFile` to a file `filename`.
 ///
 /// ```
@@ -597,13 +659,15 @@ impl fmt::Display for DesktopEntry {
 /// use std::error::Error;
 ///
 /// fn main() -> Result<(), Box<dyn Error>> {
-///     let desktop_entry_contents = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
+///     let desktop_entry_contents = "[Desktop Entry]\nType=Application\nExec=Bar\nName=Foo";
 ///     let d_entry = DesktopFile::from_str(desktop_entry_contents)?;
 ///     d_entry.to_file("foo.desktop")?;
-///    
+///
 ///     let mut file = File::open("foo.desktop")?;
 ///     let mut s = String::new();
 ///     let contents = file.read_to_string(&mut s)?;
+///     // Note that the order of the lines in the generated file is deterministic,
+///     // and could not coincide with the original file.
 ///     assert_eq!(s, desktop_entry_contents.to_string());
 ///     Ok(())
 /// }
@@ -624,7 +688,7 @@ impl DesktopFile {
     pub fn get_name(&self) -> Result<String> {
         let err = Error(vec!["Could not read default group".to_string()]);
         let err2 = Error(vec!["Could not read name".to_string()]);
-        self.get_default_group().ok_or(err)?.name.ok_or(err2)
+        get_default_value(self.get_default_group().ok_or(err)?.name.ok_or(err2)?)
     }
 
     fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
@@ -648,8 +712,8 @@ impl DesktopFile {
     /// use xdg::desktop_entry::DesktopFile;
     ///
     /// let desktop_entry = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
-    /// let default_group = (DesktopFile::from_str(desktop_entry).unwrap().get_default_group()).unwrap();
-    /// assert_eq!(default_group.name, Some("Foo".to_string()));
+    /// let loaded_entry = DesktopFile::from_str(desktop_entry).unwrap();
+    /// assert_eq!(loaded_entry.get_name().unwrap(), "Foo".to_string());
     /// ```
     pub fn from_str(input: &str) -> Result<Self> {
         let i = Ini::load_from_str(input).unwrap();
@@ -672,7 +736,7 @@ impl DesktopFile {
     ) -> Result<Self> {
         let mut groups = vec![];
         for (entry_name, entry) in hash.iter() {
-            groups.push(DesktopEntry::from_hash_map(entry_name.into(), entry)?);
+            groups.push(DesktopEntry::from_hash_map(entry_name.into(), &entry)?);
         }
         let desktop_file = Self {
             filename: filename.into(),
@@ -781,5 +845,94 @@ mod test {
         let filename = "test_files/desktop_entries/fail.desktop";
         let desktop_file = DesktopFile::from_file(filename);
         assert_eq!(desktop_file.is_err(), true);
+    }
+}
+
+fn parse_strings(s: &str) -> Strings {
+    s.split(";")
+        .map(|x| x.to_string())
+        .filter(|x| x.len() > 0)
+        .collect::<Strings>()
+}
+
+fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
+    let values = parse_strings(value);
+    if key.contains("[") {
+        if key.contains("]") {
+            let locale_as_vec: Vec<&str> = key.split("[").collect();
+            let locale_string = locale_as_vec[1].to_string();
+            let lang = LocaleLang::Lang(locale_string);
+            let locale_string = Locales { values, lang };
+            Ok(locale_string)
+        } else {
+            Err(Error::from(format!("Malformed locale string {}", key)))
+        }
+    } else if key.contains("]") {
+        Err(Error::from(format!("Malformed locale string {}", key)))
+    } else {
+        Ok(Locales {
+            values,
+            lang: LocaleLang::Default,
+        })
+    }
+}
+
+fn locale_strings_from_hashmap(
+    key: &str,
+    hashmap: &HashMap<String, String>,
+) -> Option<LocaleStrings> {
+    let keys: Vec<String> = hashmap
+        .keys()
+        .filter(|x| x.starts_with(key))
+        .map(|x| x.clone())
+        .collect();
+    let mut values: LocaleStrings = vec![];
+    if let Some(value) = hashmap.get(key) {
+        for key in keys {
+            let locale_string = parse_locale_strings(&key, value).unwrap();
+            values.push(locale_string)
+        }
+    } else {
+        return None;
+    }
+    Some(values)
+}
+
+fn locale_string_from_hashmap(
+    key: &str,
+    hashmap: &HashMap<String, String>,
+) -> Option<LocaleString> {
+    use std::convert::TryInto;
+
+    if let Some(locale_strings) = locale_strings_from_hashmap(key, hashmap) {
+        let locale_string: LocaleString = locale_strings
+            .iter()
+            .map(|x| x.clone().try_into().unwrap())
+            .collect();
+        Some(locale_string)
+    } else {
+        None
+    }
+}
+
+fn get_default_value(locale_string: LocaleString) -> Result<String> {
+    let default: Vec<Locale> = locale_string
+        .iter()
+        .filter(|x| x.lang.is_default())
+        .map(|x| x.clone())
+        .collect();
+    if default.is_empty() {
+        Err(Error::from("TODO"))
+    } else {
+        Ok(default[0].value.clone())
+    }
+}
+
+impl LocaleLang {
+    fn is_default(&self) -> bool {
+        match &self {
+            Self::Default => true,
+            _ => false,
+        }
     }
 }
