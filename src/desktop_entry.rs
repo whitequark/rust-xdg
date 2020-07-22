@@ -4,8 +4,6 @@
 //! [xdg-desktop-entry]: https://specifications.freedesktop.org/desktop-entry-spec/latest/
 //!
 
-#[warn(missing_docs)]
-
 use regex::Regex;
 use ini::Ini;
 use std::collections::HashMap;
@@ -18,7 +16,7 @@ type LocaleStrings = Vec<LocaleString>;
 
 const DEFAULT_GROUP: &str = "Desktop Entry";
 
-/// DektopFile allows to load and validate desktop files according
+/// This type allows to load and validate desktop files according
 /// to the [X Desktop Group Desktop File Entry specification][xdg-desktop-file].
 ///
 /// # Examples
@@ -28,15 +26,22 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 /// ```
 /// use xdg::desktop_entry::DesktopFile;
 ///
-/// let desktop_file = DesktopFile::from_file("foo.desktop").unwrap();
-/// assert_eq!(desktop_file.name, "Foo")
+/// let desktop_file = DesktopFile::from_file("test_files/desktop_entries/test.desktop").unwrap();
+/// let name = desktop_file.get_default_group().unwrap().name;
+///
+/// assert_eq!(name, Some("Foo".to_string()));
 /// ```
 ///
 /// To validate the desktop file:
 ///
 /// ```
-/// let result: Result<(), String> = desktop_file.validate();
-/// assert_eq!(result, Ok(()))
+/// use xdg::desktop_entry::DesktopFile;
+///
+/// let desktop_entry = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
+///
+/// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
+/// let result = desktop_entry_file.validate();
+/// assert_eq!(result.is_ok(), true);
 /// ```
 ///
 /// To get the default group use the `get_default_group` method.
@@ -320,6 +325,33 @@ impl DesktopFile {
             result.push((sec.unwrap().to_string(), s));
         }
         result
+    }
+
+    /// Loads a desktop entry from a string
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use xdg::desktop_entry::DesktopFile;
+    ///
+    /// let desktop_entry = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
+    /// let default_group = (DesktopFile::from_str(desktop_entry).unwrap().get_default_group()).unwrap();
+    /// assert_eq!(default_group.name, Some("Foo".to_string()));
+    /// ```
+    pub fn from_str(input: &str) -> Result<Self> {
+
+        let i = Ini::load_from_str(input).unwrap();
+
+        let mut result = vec!();
+        for (sec, prop) in i.iter() {
+            let mut s = HashMap::new();
+            for (k, v) in prop.iter() {
+                s.insert(k.to_string(), v.to_string());
+            }
+            result.push((sec.unwrap().to_string(), s));
+        }
+        let desktop_file = Self::from_hash_map(&result, "str.desktop")?;
+        Ok(desktop_file)
     }
 
     fn from_hash_map(hash: &Vec<(String, HashMap<String, String>)>, filename: &str) -> Result<Self> {
