@@ -80,7 +80,7 @@ pub struct DesktopEntry {
     pub exec: Option<String>,
     pub path: Option<String>,
     pub terminal: Option<bool>,
-    pub actions: Option<String>,
+    pub actions: Option<Strings>,
     pub mime_type: Option<Strings>,
     pub categories: Option<Strings>,
     pub implements: Option<Strings>,
@@ -148,7 +148,7 @@ impl DesktopEntry {
             .get("Terminal")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let actions = hash.get("Actions").map(|x| x.to_string());
+        let actions = hash.get("Actions").map(|x| convert_str_strings(x));
         let mime_type = hash.get("MimeType").map(|x| convert_str_strings(x));
         let categories = hash.get("Categories").map(|x| convert_str_strings(x));
         let implements = hash.get("Implements").map(|x| convert_str_strings(x));
@@ -413,13 +413,17 @@ impl DesktopEntry {
             if n_main_categories.count() == 0 {
                 return Err(Error::from("Missing main category"));
             }
-            let invalid_categories = categories
-                .iter()
-                .filter(|x| !main.contains(&x.as_str()) && !additional.contains(&x.as_str()));
+            let invalid_categories = categories.iter().filter(|x| {
+                !x.starts_with("X-")
+                    && !main.contains(&x.as_str())
+                    && !additional.contains(&x.as_str())
+            });
             let x: Vec<String> = invalid_categories
                 .map(|x| format!("{} is not a registered Category", x))
                 .collect();
-            return Err(Error(x));
+            if x.len() > 0 {
+                return Err(Error(x));
+            }
         }
         Ok(())
     }
@@ -509,7 +513,114 @@ impl DesktopEntry {
     }
 }
 
+impl fmt::Display for DesktopFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut string = String::new();
+        for group in &self.groups {
+            string += &group.to_string();
+        }
+        write!(f, "{}", string)
+    }
+}
+
+impl fmt::Display for DesktopEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut string = format!("[{}]", self.entry_type);
+        let mut append_string = |opt: &Option<String>, key: &str| {
+            if let Some(s) = opt {
+                string += "\n";
+                string += key;
+                string += "=";
+                string += &s;
+            };
+        };
+        append_string(&self.type_string, "Type");
+        append_string(&self.name, "Name");
+        append_string(&self.version, "Version");
+        append_string(&self.exec, "Exec");
+        append_string(&self.path, "Path");
+        append_string(&self.startup_wm_class, "StartupWMClass");
+        append_string(&self.url, "Url");
+        append_string(&self.path, "Path");
+        append_string(&self.try_exec, "TryExec");
+
+        // Locale strings
+        append_string(&self.generic_name, "GenericName");
+        append_string(&self.comment, "Comment");
+
+        // Icon strings
+        append_string(&self.icon, "Icon");
+        let mut append_bool = |opt: &Option<bool>, key: &str| {
+            if let Some(s) = opt {
+                string += "\n";
+                string += key;
+                string += "=";
+                string += &s.to_string();
+            };
+        };
+        append_bool(&self.no_display, "NoDisplay");
+        append_bool(&self.hidden, "Hidden");
+        append_bool(&self.dbus_activatable, "DBusActivatable");
+        append_bool(&self.startup_notify, "StartupNotify");
+        append_bool(&self.prefers_non_default_gpu, "PrefersNonDefaultGPU");
+        append_bool(&self.no_display, "NoDisplay");
+
+        let mut append_strings = |opt: &Option<Strings>, key: &str| {
+            if let Some(s) = opt {
+                let values = s.join(";");
+                string += "\n";
+                string += key;
+                string += "=";
+                string += &values;
+                string += ";";
+            };
+        };
+
+        append_strings(&self.only_show_in, "OnlyShowIn");
+        append_strings(&self.actions, "Actions");
+        append_strings(&self.not_show_in, "NotShowIn");
+        append_strings(&self.mime_type, "MimeType");
+        append_strings(&self.categories, "Categories");
+        append_strings(&self.implements, "Implements");
+
+        // Locale strings.
+        append_strings(&self.keywords, "Keywords");
+        write!(f, "{}", string)
+    }
+}
+/// Writes the contents of a `DesktopFile` to a file `filename`.
+///
+/// ```
+/// use xdg::desktop_entry::DesktopFile;
+/// use std::fs::File;
+/// use std::io::prelude::*;
+/// use std::error::Error;
+///
+/// fn main() -> Result<(), Box<dyn Error>> {
+///     let desktop_entry_contents = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
+///     let d_entry = DesktopFile::from_str(desktop_entry_contents)?;
+///     d_entry.to_file("foo.desktop")?;
+///    
+///     let mut file = File::open("foo.desktop")?;
+///     let mut s = String::new();
+///     let contents = file.read_to_string(&mut s)?;
+///     assert_eq!(s, desktop_entry_contents.to_string());
+///     Ok(())
+/// }
+/// ```
 impl DesktopFile {
+    pub fn to_file(&self, filename: &str) -> Result<()> {
+        use std::fs::File;
+        use std::io::prelude::*;
+
+        let mut file = File::create(filename).unwrap();
+        if let Ok(_) = file.write_all(self.to_string().as_bytes()) {
+            Ok(())
+        } else {
+            Err(Error::from("Could not write"))
+        }
+    }
+
     pub fn get_name(&self) -> Result<String> {
         let err = Error(vec!["Could not read default group".to_string()]);
         let err2 = Error(vec!["Could not read name".to_string()]);
