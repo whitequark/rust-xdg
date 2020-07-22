@@ -53,10 +53,19 @@ use BaseDirectoriesError as Error;
 /// To store configuration:
 ///
 /// ```
-/// let config_path = xdg_dirs.place_config_file("config.ini")
-///                           .expect("cannot create configuration directory");
-/// let mut config_file = File::create(config_path)?;
-/// write!(&mut config_file, "configured = 1")?;
+/// use std::error::Error;
+/// use std::fs::File;
+/// use std::io::prelude::*;
+/// use xdg::BaseDirectories;
+///
+/// fn main() -> Result<(), Box<dyn Error>> {
+///     let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp").unwrap();
+///     let config_path = xdg_dirs.place_config_file("config.ini")
+///                             .expect("cannot create configuration directory");
+///     let mut config_file = File::create(config_path)?;
+///     write!(&mut config_file, "configured = 1")?;
+///     Ok(())
+/// }
 /// ```
 ///
 /// The `config.ini` file will appear in the proper location for desktop
@@ -65,12 +74,21 @@ use BaseDirectoriesError as Error;
 ///
 /// To retrieve supplementary data:
 ///
-/// ```
-/// let logo_path = xdg_dirs.find_data_file("logo.png")
-///                         .expect("application data not present");
-/// let mut logo_file = File::open(logo_path)?;
-/// let mut logo = Vec::new();
-/// logo_file.read_to_end(&mut logo)?;
+/// ```no_run
+/// use std::error::Error;
+/// use std::fs::File;
+/// use std::io::prelude::*;
+/// use xdg::BaseDirectories;
+///
+/// fn main() -> Result<(), Box<dyn Error>> {
+///     let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp").unwrap();
+///     let logo_path = xdg_dirs.find_data_file("logo.png")
+///                             .expect("application data not present");
+///     let mut logo_file = File::open(logo_path)?;
+///     let mut logo = Vec::new();
+///     logo_file.read_to_end(&mut logo)?;
+///     Ok(())
+/// }
 /// ```
 ///
 /// The `logo.png` will be searched in the proper locations for
@@ -218,6 +236,8 @@ impl BaseDirectories {
     /// For example:
     ///
     /// ```rust
+    /// use xdg::BaseDirectories;
+    ///
     /// let dirs = BaseDirectories::with_profile("program-name", "profile-name")
     ///                            .unwrap();
     /// dirs.find_data_file("bar.jpg");

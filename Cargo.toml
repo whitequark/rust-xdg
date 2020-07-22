@@ -14,7 +14,7 @@ authors = [
 ]
 
 [lib]
-doctest = false
+doctest = true
 
 [dependencies]
 dirs = "1.0"
