@@ -6,8 +6,8 @@
 
 // TODO Add locale string support
 // TODO Add custom X- groups support
-use regex::Regex;
 use ini::Ini;
+use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -52,7 +52,7 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 ///
 pub struct DesktopFile {
     pub filename: String,
-    pub groups: Vec<DesktopEntry>
+    pub groups: Vec<DesktopEntry>,
 }
 
 /// Individual group header for a desktop file.
@@ -104,7 +104,7 @@ impl fmt::Display for Error {
 
 impl From<&str> for Error {
     fn from(error: &str) -> Self {
-        Error(vec!(error.to_string()))
+        Error(vec![error.to_string()])
     }
 }
 
@@ -116,32 +116,53 @@ impl DesktopEntry {
     fn from_hash_map(section: String, hash: &HashMap<String, String>) -> Result<Self> {
         use std::str::FromStr;
         fn convert_str_strings(s: &str) -> Strings {
-            s.split(";").map(|x| x.to_string()).filter(|x| x.len() > 0 ).collect::<Vec<String>>()
+            s.split(";")
+                .map(|x| x.to_string())
+                .filter(|x| x.len() > 0)
+                .collect::<Vec<String>>()
         }
         let type_string = hash.get("Type").map(|x| x.to_string());
         let version = hash.get("Version").map(|x| x.to_string());
         let name = hash.get("Name").map(|x| x.to_string());
         let generic_name = hash.get("GenericName").map(|x| x.to_string());
-        let no_display = hash.get("NoDisplay").map(|x| FromStr::from_str(x).ok()).flatten();
+        let no_display = hash
+            .get("NoDisplay")
+            .map(|x| FromStr::from_str(x).ok())
+            .flatten();
         let comment = hash.get("Comment").map(|x| x.to_string());
         let icon = hash.get("Icon").map(|x| x.to_string());
-        let hidden = hash.get("Hidden").map(|x| FromStr::from_str(x).ok()).flatten();
+        let hidden = hash
+            .get("Hidden")
+            .map(|x| FromStr::from_str(x).ok())
+            .flatten();
         let only_show_in = hash.get("OnlyShowIn").map(|x| convert_str_strings(x));
         let not_show_in = hash.get("NotShowIn").map(|x| convert_str_strings(x));
-        let dbus_activatable = hash.get("DBusActivatable").map(|x| FromStr::from_str(x).ok()).flatten();
+        let dbus_activatable = hash
+            .get("DBusActivatable")
+            .map(|x| FromStr::from_str(x).ok())
+            .flatten();
         let try_exec = hash.get("TryExec").map(|x| x.to_string());
         let exec = hash.get("Exec").map(|x| x.to_string());
         let path = hash.get("Path").map(|x| x.to_string());
-        let terminal = hash.get("Terminal").map(|x| FromStr::from_str(x).ok()).flatten();
+        let terminal = hash
+            .get("Terminal")
+            .map(|x| FromStr::from_str(x).ok())
+            .flatten();
         let actions = hash.get("Actions").map(|x| x.to_string());
         let mime_type = hash.get("MimeType").map(|x| convert_str_strings(x));
         let categories = hash.get("Categories").map(|x| convert_str_strings(x));
         let implements = hash.get("Implements").map(|x| convert_str_strings(x));
         let keywords = hash.get("Keywords").map(|x| convert_str_strings(x));
-        let startup_notify = hash.get("StartupNotify").map(|x| FromStr::from_str(x).ok()).flatten();
+        let startup_notify = hash
+            .get("StartupNotify")
+            .map(|x| FromStr::from_str(x).ok())
+            .flatten();
         let startup_wm_class = hash.get("StartupWMClass").map(|x| x.to_string());
         let url = hash.get("URL").map(|x| x.to_string());
-        let prefers_non_default_gpu = hash.get("PrefersNonDefaultGPU").map(|x| FromStr::from_str(x).ok()).flatten();
+        let prefers_non_default_gpu = hash
+            .get("PrefersNonDefaultGPU")
+            .map(|x| FromStr::from_str(x).ok())
+            .flatten();
         let desktop_entry = Self {
             entry_type: section,
             type_string,
@@ -174,10 +195,11 @@ impl DesktopEntry {
     }
 
     fn check_not_show_in(&self) -> Result<()> {
-        let mut warning: Vec<String> = vec!();
+        let mut warning: Vec<String> = vec![];
         if let Some(items) = &self.not_show_in {
-            let valid = ["GNOME", "KDE", "LXDE", "MATE", "Razor", "ROX", "TDE", "Unity",
-                         "XFCE", "Old"];
+            let valid = [
+                "GNOME", "KDE", "LXDE", "MATE", "Razor", "ROX", "TDE", "Unity", "XFCE", "Old",
+            ];
             for item in items {
                 let starts_with = item.starts_with("X-");
                 if !valid.contains(&item.as_str()) && !starts_with {
@@ -185,29 +207,30 @@ impl DesktopEntry {
                 }
             }
             if warning.len() > 0 {
-                return Err(Error(warning))
+                return Err(Error(warning));
             } else {
-                return Ok(())
+                return Ok(());
             }
         }
         Ok(())
     }
 
     fn check_only_show_in(&self) -> Result<()> {
-        let mut warning: Strings = vec!();
+        let mut warning: Strings = vec![];
         if let Some(items) = &self.only_show_in {
-            let valid = ["GNOME", "KDE", "LXDE", "MATE", "Razor", "ROX", "TDE", "Unity",
-                         "XFCE", "Old"];
+            let valid = [
+                "GNOME", "KDE", "LXDE", "MATE", "Razor", "ROX", "TDE", "Unity", "XFCE", "Old",
+            ];
             for item in items {
                 let starts_with = item.starts_with("X-");
                 if !valid.contains(&item.as_str()) && !starts_with {
-                    warning.push(format!("'{}' is not a registered OnlyShowIn value" , item));
+                    warning.push(format!("'{}' is not a registered OnlyShowIn value", item));
                 }
             }
             if warning.len() > 0 {
-                return Err(Error(warning))
+                return Err(Error(warning));
             } else {
-                return Ok(())
+                return Ok(());
             }
         }
         Ok(())
@@ -215,8 +238,8 @@ impl DesktopEntry {
 
     fn check_try_exec(&self) -> Result<()> {
         if let Some(try_exec) = &self.try_exec {
-            let err: Strings = vec!(format!("Could not find {}", try_exec));
-            return which::which(try_exec).and(Ok(())).or(Err(Error(err)))
+            let err: Strings = vec![format!("Could not find {}", try_exec)];
+            return which::which(try_exec).and(Ok(())).or(Err(Error(err)));
         }
         Ok(())
     }
@@ -225,8 +248,11 @@ impl DesktopEntry {
         let re1 = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$").unwrap();
         let re2 = Regex::new(r"^X-").unwrap();
         let group: &str = &self.entry_type;
-        let mut err: Vec<String> = vec!();
-        if ! (group == DEFAULT_GROUP || re1.is_match(group) || re2.is_match(group) && group.is_ascii()) {
+        let mut err: Vec<String> = vec![];
+        if !(group == DEFAULT_GROUP
+            || re1.is_match(group)
+            || re2.is_match(group) && group.is_ascii())
+        {
             err.push(format!("Invalid Group name: {}", group));
         } else if self.only_show_in.is_some() && self.not_show_in.is_some() {
             err.push("Group may either have OnlyShowIn or NotShowIn, but not both".to_string());
@@ -239,16 +265,161 @@ impl DesktopEntry {
     }
 
     fn check_categories(&self) -> Result<()> {
-        let main = ["AudioVideo", "Audio", "Video", "Development", "Education", "Game", "Graphics", "Network", "Office", "Science", "Settings", "System", "Utility"];
-        let additional = ["Building", "Debugger", "IDE", "GUIDesigner", "Profiling", "RevisionControl", "Translation", "Calendar", "ContactManagement", "Database", "Dictionary", "Chart", "Email", "Finance", "FlowChart", "PDA", "ProjectManagement", "Presentation", "Spreadsheet", "WordProcessor", "2DGraphics", "VectorGraphics", "RasterGraphics", "3DGraphics", "Scanning", "OCR", "Photography", "Publishing", "Viewer", "TextTools", "DesktopSettings", "HardwareSettings", "Printing", "PackageManager", "Dialup", "InstantMessaging", "Chat", "IRCClient", "Feed", "FileTransfer", "HamRadio", "News", "P2P", "RemoteAccess", "Telephony", "TelephonyTools", "VideoConference", "WebBrowser", "WebDevelopment", "Midi", "Mixer", "Sequencer", "Tuner", "TV", "AudioVideoEditing", "Player", "Recorder", "DiscBurning", "ActionGame", "AdventureGame", "ArcadeGame", "BoardGame", "BlocksGame", "CardGame", "KidsGame", "LogicGame", "RolePlaying", "Shooter", "Simulation", "SportsGame", "StrategyGame", "Art", "Construction", "Music", "Languages", "ArtificialIntelligence", "Astronomy", "Biology", "Chemistry", "ComputerScience", "DataVisualization", "Economy", "Electricity", "Geography", "Geology", "Geoscience", "History", "Humanities", "ImageProcessing", "Literature", "Maps", "Math", "NumericalAnalysis", "MedicalSoftware", "Physics", "Robotics", "Spirituality", "Sports", "ParallelComputing", "Amusement", "Archiving", "Compression", "Electronics", "Emulator", "Engineering", "FileTools", "FileManager", "TerminalEmulator", "Filesystem", "Monitor", "Security", "Accessibility", "Calculator", "Clock", "TextEditor", "Documentation", "Adult", "Core", "KDE", "GNOME", "XFCE", "GTK", "Qt", "Motif", "Java", "ConsoleOnly"];
+        let main = [
+            "AudioVideo",
+            "Audio",
+            "Video",
+            "Development",
+            "Education",
+            "Game",
+            "Graphics",
+            "Network",
+            "Office",
+            "Science",
+            "Settings",
+            "System",
+            "Utility",
+        ];
+        let additional = [
+            "Building",
+            "Debugger",
+            "IDE",
+            "GUIDesigner",
+            "Profiling",
+            "RevisionControl",
+            "Translation",
+            "Calendar",
+            "ContactManagement",
+            "Database",
+            "Dictionary",
+            "Chart",
+            "Email",
+            "Finance",
+            "FlowChart",
+            "PDA",
+            "ProjectManagement",
+            "Presentation",
+            "Spreadsheet",
+            "WordProcessor",
+            "2DGraphics",
+            "VectorGraphics",
+            "RasterGraphics",
+            "3DGraphics",
+            "Scanning",
+            "OCR",
+            "Photography",
+            "Publishing",
+            "Viewer",
+            "TextTools",
+            "DesktopSettings",
+            "HardwareSettings",
+            "Printing",
+            "PackageManager",
+            "Dialup",
+            "InstantMessaging",
+            "Chat",
+            "IRCClient",
+            "Feed",
+            "FileTransfer",
+            "HamRadio",
+            "News",
+            "P2P",
+            "RemoteAccess",
+            "Telephony",
+            "TelephonyTools",
+            "VideoConference",
+            "WebBrowser",
+            "WebDevelopment",
+            "Midi",
+            "Mixer",
+            "Sequencer",
+            "Tuner",
+            "TV",
+            "AudioVideoEditing",
+            "Player",
+            "Recorder",
+            "DiscBurning",
+            "ActionGame",
+            "AdventureGame",
+            "ArcadeGame",
+            "BoardGame",
+            "BlocksGame",
+            "CardGame",
+            "KidsGame",
+            "LogicGame",
+            "RolePlaying",
+            "Shooter",
+            "Simulation",
+            "SportsGame",
+            "StrategyGame",
+            "Art",
+            "Construction",
+            "Music",
+            "Languages",
+            "ArtificialIntelligence",
+            "Astronomy",
+            "Biology",
+            "Chemistry",
+            "ComputerScience",
+            "DataVisualization",
+            "Economy",
+            "Electricity",
+            "Geography",
+            "Geology",
+            "Geoscience",
+            "History",
+            "Humanities",
+            "ImageProcessing",
+            "Literature",
+            "Maps",
+            "Math",
+            "NumericalAnalysis",
+            "MedicalSoftware",
+            "Physics",
+            "Robotics",
+            "Spirituality",
+            "Sports",
+            "ParallelComputing",
+            "Amusement",
+            "Archiving",
+            "Compression",
+            "Electronics",
+            "Emulator",
+            "Engineering",
+            "FileTools",
+            "FileManager",
+            "TerminalEmulator",
+            "Filesystem",
+            "Monitor",
+            "Security",
+            "Accessibility",
+            "Calculator",
+            "Clock",
+            "TextEditor",
+            "Documentation",
+            "Adult",
+            "Core",
+            "KDE",
+            "GNOME",
+            "XFCE",
+            "GTK",
+            "Qt",
+            "Motif",
+            "Java",
+            "ConsoleOnly",
+        ];
         if let Some(categories) = &self.categories {
             let n_main_categories = categories.iter().filter(|x| main.contains(&x.as_str()));
             if n_main_categories.count() == 0 {
-                return Err(Error::from("Missing main category"))
+                return Err(Error::from("Missing main category"));
             }
-            let invalid_categories = categories.iter().filter(|x| !main.contains(&x.as_str()) && !additional.contains(&x.as_str()));
-            let x: Vec<String> = invalid_categories.map(|x| format!("{} is not a registered Category", x)).collect();
-            return Err(Error(x))
+            let invalid_categories = categories
+                .iter()
+                .filter(|x| !main.contains(&x.as_str()) && !additional.contains(&x.as_str()));
+            let x: Vec<String> = invalid_categories
+                .map(|x| format!("{} is not a registered Category", x))
+                .collect();
+            return Err(Error(x));
         }
         Ok(())
     }
@@ -263,10 +434,9 @@ impl DesktopEntry {
         }
     }
 
-    fn check_extras(&self) -> Result<()>{
+    fn check_extras(&self) -> Result<()> {
         let group = &self.entry_type;
-        let mut err: Strings = vec!();
-
+        let mut err: Strings = vec![];
 
         if group == "KDE Desktop Entry" {
             err.push("[KDE Desktop Entry] Header is deprecated".to_string());
@@ -286,14 +456,17 @@ impl DesktopEntry {
     }
 
     fn check_keys(&self) -> Result<()> {
-        let mut warnings: Strings = vec!();
+        let mut warnings: Strings = vec![];
         if let Some(etype) = &self.type_string {
             if etype == "ServiceType" || etype == "Service" || etype == "FSDevice" {
                 warnings.push(format!("Type={} is a KDE extension", etype));
             } else if etype == "MimeType" {
                 warnings.push("Type=MimeType is deprecated".to_string());
             } else if !(etype == "Application" || etype == "Link" || etype == "Directory") {
-                warnings.push(format!("Value of key 'Type' must be Application, Link or Directory, but is {}", etype))
+                warnings.push(format!(
+                    "Value of key 'Type' must be Application, Link or Directory, but is {}",
+                    etype
+                ))
             };
 
             if etype == "Application" {
@@ -337,16 +510,15 @@ impl DesktopEntry {
 }
 
 impl DesktopFile {
-
     pub fn get_name(&self) -> Result<String> {
-        let err = Error(vec!("Could not read default group".to_string()));
-        let err2 = Error(vec!("Could not read name".to_string()));
+        let err = Error(vec!["Could not read default group".to_string()]);
+        let err2 = Error(vec!["Could not read name".to_string()]);
         self.get_default_group().ok_or(err)?.name.ok_or(err2)
     }
 
     fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
         let i = Ini::load_from_file(ini).unwrap();
-        let mut result = vec!();
+        let mut result = vec![];
         for (sec, prop) in i.iter() {
             let mut s = HashMap::new();
             for (k, v) in prop.iter() {
@@ -369,10 +541,9 @@ impl DesktopFile {
     /// assert_eq!(default_group.name, Some("Foo".to_string()));
     /// ```
     pub fn from_str(input: &str) -> Result<Self> {
-
         let i = Ini::load_from_str(input).unwrap();
 
-        let mut result = vec!();
+        let mut result = vec![];
         for (sec, prop) in i.iter() {
             let mut s = HashMap::new();
             for (k, v) in prop.iter() {
@@ -384,8 +555,11 @@ impl DesktopFile {
         Ok(desktop_file)
     }
 
-    fn from_hash_map(hash: &Vec<(String, HashMap<String, String>)>, filename: &str) -> Result<Self> {
-        let mut groups = vec!();
+    fn from_hash_map(
+        hash: &Vec<(String, HashMap<String, String>)>,
+        filename: &str,
+    ) -> Result<Self> {
+        let mut groups = vec![];
         for (entry_name, entry) in hash.iter() {
             groups.push(DesktopEntry::from_hash_map(entry_name.into(), entry)?);
         }
@@ -406,22 +580,23 @@ impl DesktopFile {
     }
 
     fn check_extension(&self) -> Result<()> {
-        use std::path::Path;
         use std::ffi::OsStr;
+        use std::path::Path;
 
         let mut err = String::new();
         let extension = Path::new(&self.filename)
             .extension()
-            .and_then(OsStr::to_str).unwrap();
+            .and_then(OsStr::to_str)
+            .unwrap();
         match extension {
             ".desktop" => (),
             ".directory" => (),
             ".kdelnk" => {
                 err += "File extension .kdelnk is deprecated";
-            },
+            }
             _ => {
                 err += "Unknown File extension";
-            },
+            }
         };
 
         let etype = &self.get_default_group().unwrap().type_string.unwrap();
@@ -449,13 +624,12 @@ impl DesktopFile {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use crate::desktop_entry::DesktopFile;
     #[test]
     fn parse_desktop_file() {
-        let filename ="test_files/desktop_entries/test-multiple.desktop";
+        let filename = "test_files/desktop_entries/test-multiple.desktop";
         let desktop_file = DesktopFile::from_file(filename).unwrap();
         let groups = desktop_file.groups;
         assert_eq!(desktop_file.filename, filename);
@@ -464,7 +638,7 @@ mod test {
     #[test]
     fn parse_groups() {
         use crate::desktop_entry::DEFAULT_GROUP;
-        let filename ="test_files/desktop_entries/test-multiple.desktop";
+        let filename = "test_files/desktop_entries/test-multiple.desktop";
         let desktop_file = DesktopFile::from_file(filename).unwrap();
         let groups = desktop_file.groups;
         let g1 = groups.get(0).unwrap();
@@ -476,7 +650,7 @@ mod test {
 
     #[test]
     fn try_exec() {
-        let filename ="test_files/desktop_entries/test-multiple.desktop";
+        let filename = "test_files/desktop_entries/test-multiple.desktop";
         let desktop_file = DesktopFile::from_file(filename).unwrap();
         let default_group = &desktop_file.groups[0];
         let result = default_group.check_try_exec();
@@ -488,12 +662,12 @@ mod test {
 
     #[test]
     fn check_group() {
-        let filename ="test_files/desktop_entries/test-multiple.desktop";
+        let filename = "test_files/desktop_entries/test-multiple.desktop";
         let desktop_file = DesktopFile::from_file(filename).unwrap();
         let groups = desktop_file.groups;
         let default_group = groups.get(0).unwrap();
         assert_eq!(default_group.check_group().is_ok(), true);
-        let filename ="test_files/desktop_entries/fail.desktop";
+        let filename = "test_files/desktop_entries/fail.desktop";
         let desktop_file = DesktopFile::from_file(filename);
         assert_eq!(desktop_file.is_err(), true);
     }
