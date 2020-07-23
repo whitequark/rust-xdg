@@ -5,49 +5,24 @@
 //!
 
 // TODO Add custom X- groups support
+use self::locale::*;
+use self::locale::{LocaleLang, LocaleString};
+use self::error::Error;
+
 use ini::Ini;
 use regex::Regex;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::fmt;
+
+mod locale;
+mod error;
+mod types;
+
+#[cfg(test)]
+mod test;
 
 type IconString = String;
 type Strings = Vec<String>;
-
-#[derive(Clone)]
-enum LocaleLang {
-    Default,
-    Lang(String),
-}
-
-#[derive(Clone)]
-pub struct Locale {
-    lang: LocaleLang,
-    value: String,
-}
-
-#[derive(Clone)]
-pub struct Locales {
-    lang: LocaleLang,
-    values: Strings,
-}
-
-type LocaleString = Vec<Locale>;
-type LocaleStrings = Vec<Locales>;
-
-impl TryFrom<Locales> for Locale {
-    type Error = Error;
-    fn try_from(locales: Locales) -> Result<Self> {
-        if locales.values.is_empty() {
-            Err(Error::from("Could not conver locales to locale"))
-        } else {
-            Ok(Self {
-                value: locales.values[0].clone(),
-                lang: locales.lang,
-            })
-        }
-    }
-}
 
 const DEFAULT_GROUP: &str = "Desktop Entry";
 
@@ -123,30 +98,6 @@ pub struct DesktopEntry {
     pub url: Option<String>, // Required for Link type entries
     pub prefers_non_default_gpu: Option<bool>,
 }
-
-// TODO Find a better type
-#[derive(Debug)]
-pub struct Error(Vec<String>);
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let message = self.0.join(" ");
-        write!(f, "{}", message)
-    }
-}
-
-impl From<&str> for Error {
-    fn from(error: &str) -> Self {
-        Error::from(error.to_string())
-    }
-}
-
-impl From<String> for Error {
-    fn from(error: String) -> Self {
-        Error(vec![error])
-    }
-}
-impl std::error::Error for Error {}
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -546,110 +497,6 @@ impl DesktopEntry {
     }
 }
 
-impl fmt::Display for DesktopFile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut string = String::new();
-        for group in &self.groups {
-            string += &group.to_string();
-        }
-        write!(f, "{}", string)
-    }
-}
-
-impl fmt::Display for DesktopEntry {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut string = format!("[{}]", self.entry_type);
-        let mut append_string = |opt: &Option<String>, key: &str| {
-            if let Some(s) = opt {
-                string += "\n";
-                string += key;
-                string += "=";
-                string += &s;
-            };
-        };
-        append_string(&self.type_string, "Type");
-        append_string(&self.version, "Version");
-        append_string(&self.exec, "Exec");
-        append_string(&self.path, "Path");
-        append_string(&self.startup_wm_class, "StartupWMClass");
-        append_string(&self.url, "Url");
-        append_string(&self.path, "Path");
-        append_string(&self.try_exec, "TryExec");
-
-        // Icon strings
-        append_string(&self.icon, "Icon");
-
-        // Locale strings
-        let mut append_string = |opt: &Option<LocaleString>, key: &str| {
-            if let Some(locale_string) = opt {
-                for locale in locale_string.iter() {
-                    let value = locale.value.clone();
-                    match &locale.lang {
-                        LocaleLang::Lang(lang) => {
-                            string += &format!("\n{}[{}]={}", key, lang, value)
-                        }
-                        _ => string += &format!("\n{}={}", key, value),
-                    }
-                }
-            };
-        };
-        append_string(&self.name, "Name");
-        append_string(&self.generic_name, "GenericName");
-        append_string(&self.comment, "Comment");
-
-        let mut append_bool = |opt: &Option<bool>, key: &str| {
-            if let Some(s) = opt {
-                string += "\n";
-                string += key;
-                string += "=";
-                string += &s.to_string();
-            };
-        };
-        append_bool(&self.no_display, "NoDisplay");
-        append_bool(&self.hidden, "Hidden");
-        append_bool(&self.dbus_activatable, "DBusActivatable");
-        append_bool(&self.startup_notify, "StartupNotify");
-        append_bool(&self.prefers_non_default_gpu, "PrefersNonDefaultGPU");
-        append_bool(&self.no_display, "NoDisplay");
-
-        let mut append_strings = |opt: &Option<Strings>, key: &str| {
-            if let Some(s) = opt {
-                let values = s.join(";");
-                string += "\n";
-                string += key;
-                string += "=";
-                string += &values;
-                string += ";";
-            };
-        };
-
-        append_strings(&self.only_show_in, "OnlyShowIn");
-        append_strings(&self.actions, "Actions");
-        append_strings(&self.not_show_in, "NotShowIn");
-        append_strings(&self.mime_type, "MimeType");
-        append_strings(&self.categories, "Categories");
-        append_strings(&self.implements, "Implements");
-
-        // Locale strings.
-        let mut append_strings = |opt: &Option<LocaleStrings>, key: &str| {
-            if let Some(locale_strings) = opt {
-                for locale in locale_strings.iter() {
-                    let values = locale.values.join(";");
-                    match &locale.lang {
-                        LocaleLang::Lang(lang) => {
-                            string += &format!("\n{}[{}]={};", key, lang, values)
-                        }
-                        _ => string += &format!("\n{}={}", key, values),
-                    }
-                }
-            };
-        };
-        append_strings(&self.keywords, "Keywords");
-
-        write!(f, "{}", string)
-    }
-}
-
 /// Writes the contents of a `DesktopFile` to a file `filename`.
 ///
 /// ```
@@ -799,55 +646,6 @@ impl DesktopFile {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::desktop_entry::DesktopFile;
-    #[test]
-    fn parse_desktop_file() {
-        let filename = "test_files/desktop_entries/test-multiple.desktop";
-        let desktop_file = DesktopFile::from_file(filename).unwrap();
-        let groups = desktop_file.groups;
-        assert_eq!(desktop_file.filename, filename);
-        assert_eq!(groups.len(), 2);
-    }
-    #[test]
-    fn parse_groups() {
-        use crate::desktop_entry::DEFAULT_GROUP;
-        let filename = "test_files/desktop_entries/test-multiple.desktop";
-        let desktop_file = DesktopFile::from_file(filename).unwrap();
-        let groups = desktop_file.groups;
-        let g1 = groups.get(0).unwrap();
-        let g2 = groups.get(1).unwrap();
-        assert_eq!(g1.entry_type, DEFAULT_GROUP);
-        assert_eq!(g2.entry_type, "Desktop Action new-empty-window");
-        assert_eq!(g1.categories.as_ref().unwrap().len(), 4)
-    }
-
-    #[test]
-    fn try_exec() {
-        let filename = "test_files/desktop_entries/test-multiple.desktop";
-        let desktop_file = DesktopFile::from_file(filename).unwrap();
-        let default_group = &desktop_file.groups[0];
-        let result = default_group.check_try_exec();
-        let sec_group = &desktop_file.groups[1];
-        let result2 = sec_group.check_try_exec().is_err();
-        assert_eq!(result.is_ok(), true);
-        assert_eq!(result2, false);
-    }
-
-    #[test]
-    fn check_group() {
-        let filename = "test_files/desktop_entries/test-multiple.desktop";
-        let desktop_file = DesktopFile::from_file(filename).unwrap();
-        let groups = desktop_file.groups;
-        let default_group = groups.get(0).unwrap();
-        assert_eq!(default_group.check_group().is_ok(), true);
-        let filename = "test_files/desktop_entries/fail.desktop";
-        let desktop_file = DesktopFile::from_file(filename);
-        assert_eq!(desktop_file.is_err(), true);
-    }
-}
-
 fn parse_strings(s: &str) -> Strings {
     s.split(";")
         .map(|x| x.to_string())
@@ -855,84 +653,106 @@ fn parse_strings(s: &str) -> Strings {
         .collect::<Strings>()
 }
 
-fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
-    let values = parse_strings(value);
-    if key.contains("[") {
-        if key.contains("]") {
-            let locale_as_vec: Vec<&str> = key.split("[").collect();
-            let locale_string = locale_as_vec[1].to_string();
-            let lang = LocaleLang::Lang(locale_string);
-            let locale_string = Locales { values, lang };
-            Ok(locale_string)
-        } else {
-            Err(Error::from(format!("Malformed locale string {}", key)))
+impl fmt::Display for DesktopFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut string = String::new();
+        for group in &self.groups {
+            string += &group.to_string();
         }
-    } else if key.contains("]") {
-        Err(Error::from(format!("Malformed locale string {}", key)))
-    } else {
-        Ok(Locales {
-            values,
-            lang: LocaleLang::Default,
-        })
+        write!(f, "{}", string)
     }
 }
 
-fn locale_strings_from_hashmap(
-    key: &str,
-    hashmap: &HashMap<String, String>,
-) -> Option<LocaleStrings> {
-    let keys: Vec<String> = hashmap
-        .keys()
-        .filter(|x| x.starts_with(key))
-        .map(|x| x.clone())
-        .collect();
-    let mut values: LocaleStrings = vec![];
-    if let Some(value) = hashmap.get(key) {
-        for key in keys {
-            let locale_string = parse_locale_strings(&key, value).unwrap();
-            values.push(locale_string)
-        }
-    } else {
-        return None;
-    }
-    Some(values)
-}
+impl fmt::Display for DesktopEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut string = format!("[{}]", self.entry_type);
+        let mut append_string = |opt: &Option<String>, key: &str| {
+            if let Some(s) = opt {
+                string += "\n";
+                string += key;
+                string += "=";
+                string += &s;
+            };
+        };
+        append_string(&self.type_string, "Type");
+        append_string(&self.version, "Version");
+        append_string(&self.exec, "Exec");
+        append_string(&self.path, "Path");
+        append_string(&self.startup_wm_class, "StartupWMClass");
+        append_string(&self.url, "Url");
+        append_string(&self.path, "Path");
+        append_string(&self.try_exec, "TryExec");
 
-fn locale_string_from_hashmap(
-    key: &str,
-    hashmap: &HashMap<String, String>,
-) -> Option<LocaleString> {
-    use std::convert::TryInto;
+        // Icon strings
+        append_string(&self.icon, "Icon");
 
-    if let Some(locale_strings) = locale_strings_from_hashmap(key, hashmap) {
-        let locale_string: LocaleString = locale_strings
-            .iter()
-            .map(|x| x.clone().try_into().unwrap())
-            .collect();
-        Some(locale_string)
-    } else {
-        None
-    }
-}
+        // Locale strings
+        let mut append_string = |opt: &Option<LocaleString>, key: &str| {
+            if let Some(locale_string) = opt {
+                for locale in locale_string.iter() {
+                    let value = locale.value.clone();
+                    match &locale.lang {
+                        LocaleLang::Lang(lang) => {
+                            string += &format!("\n{}[{}]={}", key, lang, value)
+                        }
+                        _ => string += &format!("\n{}={}", key, value),
+                    }
+                }
+            };
+        };
+        append_string(&self.name, "Name");
+        append_string(&self.generic_name, "GenericName");
+        append_string(&self.comment, "Comment");
 
-fn get_default_value(locale_string: LocaleString) -> Result<String> {
-    let default: Vec<Locale> = locale_string
-        .iter()
-        .filter(|x| x.lang.is_default())
-        .map(|x| x.clone())
-        .collect();
-    if default.is_empty() {
-        Err(Error::from("TODO"))
-    } else {
-        Ok(default[0].value.clone())
-    }
-}
+        let mut append_bool = |opt: &Option<bool>, key: &str| {
+            if let Some(s) = opt {
+                string += "\n";
+                string += key;
+                string += "=";
+                string += &s.to_string();
+            };
+        };
+        append_bool(&self.no_display, "NoDisplay");
+        append_bool(&self.hidden, "Hidden");
+        append_bool(&self.dbus_activatable, "DBusActivatable");
+        append_bool(&self.startup_notify, "StartupNotify");
+        append_bool(&self.prefers_non_default_gpu, "PrefersNonDefaultGPU");
+        append_bool(&self.no_display, "NoDisplay");
 
-impl LocaleLang {
-    fn is_default(&self) -> bool {
-        match &self {
-            Self::Default => true,
-            _ => false,
-        }
+        let mut append_strings = |opt: &Option<Strings>, key: &str| {
+            if let Some(s) = opt {
+                let values = s.join(";");
+                string += "\n";
+                string += key;
+                string += "=";
+                string += &values;
+                string += ";";
+            };
+        };
+
+        append_strings(&self.only_show_in, "OnlyShowIn");
+        append_strings(&self.actions, "Actions");
+        append_strings(&self.not_show_in, "NotShowIn");
+        append_strings(&self.mime_type, "MimeType");
+        append_strings(&self.categories, "Categories");
+        append_strings(&self.implements, "Implements");
+
+        // Locale strings.
+        let mut append_strings = |opt: &Option<LocaleStrings>, key: &str| {
+            if let Some(locale_strings) = opt {
+                for locale in locale_strings.iter() {
+                    let values = locale.values.join(";");
+                    match &locale.lang {
+                        LocaleLang::Lang(lang) => {
+                            string += &format!("\n{}[{}]={};", key, lang, values)
+                        }
+                        _ => string += &format!("\n{}={}", key, values),
+                    }
+                }
+            };
+        };
+        append_strings(&self.keywords, "Keywords");
+
+        write!(f, "{}", string)
     }
 }
