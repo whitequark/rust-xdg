@@ -111,13 +111,13 @@ impl DesktopEntry {
 
         let type_string = hashmap.get("Type").map(|x| x.to_string());
         let version = hashmap.get("Version").map(|x| x.to_string());
-        let name = locale_string_from_hashmap("Name", hashmap);
-        let generic_name = locale_string_from_hashmap("GenericName", hashmap);
+        let name = LocaleString::from_hashmap("Name", hashmap);
+        let generic_name = LocaleString::from_hashmap("GenericName", hashmap);
         let no_display = hashmap
             .get("NoDisplay")
             .map(|x| FromStr::from_str(x).ok())
             .flatten();
-        let comment = locale_string_from_hashmap("Comment", hashmap);
+        let comment = LocaleString::from_hashmap("Comment", hashmap);
         let icon = hashmap.get("Icon").map(|x| x.to_string());
         let hidden = hashmap
             .get("Hidden")
@@ -140,7 +140,7 @@ impl DesktopEntry {
         let mime_type = hashmap.get("MimeType").map(|x| parse_strings(x));
         let categories = hashmap.get("Categories").map(|x| parse_strings(x));
         let implements = hashmap.get("Implements").map(|x| parse_strings(x));
-        let keywords = locale_strings_from_hashmap("Keywords", hashmap);
+        let keywords = LocaleStrings::from_hashmap("Keywords", hashmap);
         let startup_notify = hashmap
             .get("StartupNotify")
             .map(|x| FromStr::from_str(x).ok())
@@ -539,7 +539,7 @@ impl DesktopFile {
     pub fn get_name(&self) -> Result<String> {
         let err = Error(vec!["Could not read default group".to_string()]);
         let err2 = Error(vec!["Could not read name".to_string()]);
-        get_default_value(self.get_default_group().ok_or(err)?.name.ok_or(err2)?)
+        self.get_default_group().ok_or(err)?.name.ok_or(err2)?.get_default()
     }
 
     fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
@@ -693,7 +693,7 @@ impl fmt::Display for DesktopEntry {
         // Locale strings
         let mut append_string = |opt: &Option<LocaleString>, key: &str| {
             if let Some(locale_string) = opt {
-                for locale in locale_string.iter() {
+                for locale in locale_string.locs.iter() {
                     let value = locale.value.clone();
                     match &locale.lang {
                         LocaleLang::Lang(lang) => {
@@ -744,7 +744,7 @@ impl fmt::Display for DesktopEntry {
         // Locale strings.
         let mut append_strings = |opt: &Option<LocaleStrings>, key: &str| {
             if let Some(locale_strings) = opt {
-                for locale in locale_strings.iter() {
+                for locale in locale_strings.locs.iter() {
                     let values = locale.values.join(";");
                     match &locale.lang {
                         LocaleLang::Lang(lang) => {

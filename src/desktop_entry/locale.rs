@@ -10,6 +10,9 @@ pub enum LocaleLang {
     Lang(String),
 }
 
+/// A `LocaleString` is a collection of pairs `lang`, `value`
+/// which are represented by the `Locale` struct.
+///
 /// # Example
 /// ```
 /// use xdg::desktop_entry::DesktopFile;
@@ -19,20 +22,25 @@ pub enum LocaleLang {
 ///     Type=Application
 ///     Name=Foo
 ///     Name[jp]=銹
-///     Name[sp]=ElFoo
+///     Name[es]=ElFoo
 ///     Exec=Bar
+///     Keywords=a;b;
+///     Keywords[es]=c;d;
 /// ";
 ///
 /// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
 /// let name = desktop_entry_file.get_name().unwrap();
 /// assert_eq!(name, "Foo".to_string());
 /// let default_group = desktop_entry_file.get_default_group().unwrap();
-/// let v = default_group.name.unwrap();
-/// println!("{:?}", v);
-/// assert_eq!(v.len(), 3);
-/// assert_eq!(v[0].value, "Foo".to_string());
-/// assert_eq!(v[1].value, "銹".to_string());
-/// assert_eq!(v[2].value, "ElFoo".to_string());
+/// let name = default_group.name.unwrap();
+/// assert_eq!(name.len(), 3);
+/// assert_eq!(name.get_default().unwrap(), "Foo".to_string());
+/// assert_eq!(name.get("es").unwrap(), "ElFoo".to_string());
+/// assert_eq!(name.get("jp").unwrap(), "銹".to_string());
+/// let keywords = default_group.keywords.unwrap();
+/// assert_eq!(keywords.get_default().unwrap(), ["a", "b"]);
+/// assert_eq!(keywords.get("es").unwrap(), ["c", "d"]);
+/// assert_eq!(keywords.len(), 2);
 /// ```
 ///
 #[derive(Clone, Debug)]
@@ -47,8 +55,11 @@ pub struct Locales {
     pub values: Strings,
 }
 
-pub type LocaleString = Vec<Locale>;
-pub type LocaleStrings = Vec<Locales>;
+#[derive(Clone, Debug)]
+pub struct LocaleString { pub locs: Vec<Locale> }
+
+#[derive(Clone, Debug)]
+pub struct LocaleStrings { pub locs: Vec<Locales> }
 
 impl TryFrom<Locales> for Locale {
     type Error = Error;
@@ -75,19 +86,108 @@ impl LocaleLang {
     }
 }
 
-pub fn get_default_value(locale_string: LocaleString) -> Result<String> {
-    let default: Vec<Locale> = locale_string
-        .iter()
-        .filter(|x| x.lang.is_default())
-        .map(|x| x.clone())
-        .collect();
-    if default.is_empty() {
-        Err(Error::from("Default locale is missing"))
-    } else {
-        Ok(default[0].value.clone())
+impl LocaleString {
+    pub fn len(&self) -> usize {
+        self.locs.len()
+    }
+
+    pub fn get(&self, lang: &str) -> Result<String> {
+        let lang = lang.to_string();
+        for locale in self.locs.iter() {
+            if let LocaleLang::Lang(locale_lang) = locale.lang.clone() {
+                if lang == locale_lang {
+                    let val = locale.value.clone();
+                    return Ok(val)
+                }
+            }
+        }
+        Err(Error::from(""))
+    }
+
+    pub fn get_default(&self) -> Result<String> {
+        let default: Vec<Locale> = self.locs
+            .iter()
+            .filter(|x| x.lang.is_default())
+            .map(|x| x.clone())
+            .collect();
+        if default.is_empty() {
+            Err(Error::from("Default locale is missing"))
+        } else {
+            Ok(default[0].value.clone())
+        }
+    }
+
+    pub fn from_hashmap(
+        key: &str,
+        hashmap: &HashMap<String, String>,
+    ) -> Option<LocaleString> {
+        use std::convert::TryInto;
+
+        if let Some(locale_strings) = LocaleStrings::from_hashmap(key, hashmap) {
+            let locale_string: Vec<Locale> = locale_strings.locs
+                .iter()
+                .map(|x| x.clone().try_into().unwrap())
+                .collect();
+            Some(LocaleString { locs: locale_string })
+        } else {
+            None
+        }
     }
 }
 
+impl LocaleStrings {
+    pub fn len(&self) -> usize {
+        self.locs.len()
+    }
+
+    pub fn get_default(&self) -> Result<Strings> {
+        let default: Vec<Locales> = self.locs
+            .iter()
+            .filter(|x| x.lang.is_default())
+            .map(|x| x.clone())
+            .collect();
+        if default.is_empty() {
+            Err(Error::from("Default locale is missing"))
+        } else {
+            Ok(default[0].values.clone())
+        }
+    }
+
+    pub fn get(&self, lang: &str) -> Result<Strings> {
+        let lang = lang.to_string();
+        for locale in self.locs.iter() {
+            if let LocaleLang::Lang(locale_lang) = locale.lang.clone() {
+                if lang == locale_lang {
+                    let val = locale.values.clone();
+                    return Ok(val)
+                }
+            }
+        }
+        Err(Error::from(""))
+    }
+
+    pub fn from_hashmap(
+        key: &str,
+        hashmap: &HashMap<String, String>,
+    ) -> Option<LocaleStrings> {
+        let keys: Vec<String> = hashmap
+            .keys()
+            .filter(|x| x.starts_with(key))
+            .map(|x| x.clone())
+            .collect();
+        let mut values = vec!() ;
+        for k in keys {
+            if let Some(value) = hashmap.get(&k) {
+                let locale_string = parse_locale_strings(&k, value).unwrap();
+                values.push(locale_string)
+            }
+        }
+        Some(LocaleStrings{ locs: values })
+    }
+}
+
+/// Turns `Key[lang], Val` into a `Locales {lang, value: Val}`.
+///
 /// # Example
 /// ```
 /// use xdg::desktop_entry::locale::{parse_locale_strings, LocaleLang};
@@ -117,42 +217,5 @@ pub fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
             values,
             lang: LocaleLang::Default,
         })
-    }
-}
-
-pub fn locale_strings_from_hashmap(
-    key: &str,
-    hashmap: &HashMap<String, String>,
-) -> Option<LocaleStrings> {
-    let keys: Vec<String> = hashmap
-        .keys()
-        .filter(|x| x.starts_with(key))
-        .map(|x| x.clone())
-        .collect();
-    let mut values: LocaleStrings = vec!();
-    for k in keys {
-        if let Some(value) = hashmap.get(&k) {
-            let locale_string = parse_locale_strings(&k, value).unwrap();
-            println!("{:?}", locale_string);
-            values.push(locale_string)
-        }
-    }
-    Some(values)
-}
-
-pub fn locale_string_from_hashmap(
-    key: &str,
-    hashmap: &HashMap<String, String>,
-) -> Option<LocaleString> {
-    use std::convert::TryInto;
-
-    if let Some(locale_strings) = locale_strings_from_hashmap(key, hashmap) {
-        let locale_string: LocaleString = locale_strings
-            .iter()
-            .map(|x| x.clone().try_into().unwrap())
-            .collect();
-        Some(locale_string)
-    } else {
-        None
     }
 }
