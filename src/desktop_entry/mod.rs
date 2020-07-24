@@ -14,9 +14,8 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 
-mod locale;
+pub mod locale;
 mod error;
-mod types;
 
 #[cfg(test)]
 mod test;
@@ -47,7 +46,12 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 /// ```
 /// use xdg::desktop_entry::DesktopFile;
 ///
-/// let desktop_entry = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
+/// let desktop_entry = "
+///     [Desktop Entry]
+///     Type=Application
+///     Name=Foo
+///     Exec=Bar
+/// ";
 ///
 /// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
 /// let result = desktop_entry_file.validate();

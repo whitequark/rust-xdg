@@ -4,19 +4,44 @@ use crate::desktop_entry::{Result, Strings};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum LocaleLang {
     Default,
     Lang(String),
 }
 
-#[derive(Clone)]
+/// # Example
+/// ```
+/// use xdg::desktop_entry::DesktopFile;
+///
+/// let desktop_entry = "
+///     [Desktop Entry]
+///     Type=Application
+///     Name=Foo
+///     Name[jp]=銹
+///     Name[sp]=ElFoo
+///     Exec=Bar
+/// ";
+///
+/// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
+/// let name = desktop_entry_file.get_name().unwrap();
+/// assert_eq!(name, "Foo".to_string());
+/// let default_group = desktop_entry_file.get_default_group().unwrap();
+/// let v = default_group.name.unwrap();
+/// println!("{:?}", v);
+/// assert_eq!(v.len(), 3);
+/// assert_eq!(v[0].value, "Foo".to_string());
+/// assert_eq!(v[1].value, "銹".to_string());
+/// assert_eq!(v[2].value, "ElFoo".to_string());
+/// ```
+///
+#[derive(Clone, Debug)]
 pub struct Locale {
     pub lang: LocaleLang,
     pub value: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Locales {
     pub lang: LocaleLang,
     pub values: Strings,
@@ -63,12 +88,22 @@ pub fn get_default_value(locale_string: LocaleString) -> Result<String> {
     }
 }
 
-fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
+/// # Example
+/// ```
+/// use xdg::desktop_entry::locale::{parse_locale_strings, LocaleLang};
+///
+/// let locales = parse_locale_strings("Name[jp]", "銹").unwrap();
+/// assert_eq!(&locales.values[0], "銹");
+/// if let LocaleLang::Lang(lang) = locales.lang {
+///     assert_eq!(&lang, "jp");
+/// }
+/// ```
+pub fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
     let values = parse_strings(value);
     if key.contains("[") {
         if key.contains("]") {
             let locale_as_vec: Vec<&str> = key.split("[").collect();
-            let locale_string = locale_as_vec[1].to_string();
+            let locale_string = locale_as_vec[1].trim_end_matches(']').to_string();
             let lang = LocaleLang::Lang(locale_string);
             let locale_string = Locales { values, lang };
             Ok(locale_string)
@@ -94,14 +129,13 @@ pub fn locale_strings_from_hashmap(
         .filter(|x| x.starts_with(key))
         .map(|x| x.clone())
         .collect();
-    let mut values: LocaleStrings = vec![];
-    if let Some(value) = hashmap.get(key) {
-        for key in keys {
-            let locale_string = parse_locale_strings(&key, value).unwrap();
+    let mut values: LocaleStrings = vec!();
+    for k in keys {
+        if let Some(value) = hashmap.get(&k) {
+            let locale_string = parse_locale_strings(&k, value).unwrap();
+            println!("{:?}", locale_string);
             values.push(locale_string)
         }
-    } else {
-        return None;
     }
     Some(values)
 }
