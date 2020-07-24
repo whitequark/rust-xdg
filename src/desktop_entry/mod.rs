@@ -106,6 +106,31 @@ pub struct DesktopEntry {
 type Result<T> = std::result::Result<T, Error>;
 
 impl DesktopEntry {
+
+    pub fn get_name(&self) -> Result<String> {
+        let name = self.name.clone().unwrap();
+        name.get_default()
+    }
+
+    pub fn get_header(&self) -> Result<String> {
+        Ok(self.entry_type.clone())
+    }
+
+    pub fn get_type(&self) -> Result<String> {
+        let err = Error(vec!["Could not read Type".to_string()]);
+        self.type_string.clone().ok_or(err)
+    }
+
+    pub fn get_exec(&self) -> Result<String> {
+        let err = Error::from("Could not read Exec");
+        self.exec.clone().ok_or(err)
+    }
+
+    pub fn get_url(&self) -> Result<String> {
+        let err = Error::from("Could not read URL");
+        self.url.clone().ok_or(err)
+    }
+
     fn from_hash_map(section: String, hashmap: &HashMap<String, String>) -> Result<Self> {
         use std::str::FromStr;
 
@@ -519,7 +544,7 @@ impl DesktopEntry {
 ///     let contents = file.read_to_string(&mut s)?;
 ///     // Note that the order of the lines in the generated file is deterministic,
 ///     // and could not coincide with the original file.
-///     assert_eq!(s, desktop_entry_contents.to_string());
+///     assert_eq!(s, desktop_entry_contents);
 ///     Ok(())
 /// }
 /// ```
@@ -537,9 +562,19 @@ impl DesktopFile {
     }
 
     pub fn get_name(&self) -> Result<String> {
-        let err = Error(vec!["Could not read default group".to_string()]);
-        let err2 = Error(vec!["Could not read name".to_string()]);
-        self.get_default_group().ok_or(err)?.name.ok_or(err2)?.get_default()
+        self.get_default_group()?.get_name()
+    }
+
+    pub fn get_type(&self) -> Result<String> {
+        self.get_default_group()?.get_type()
+    }
+
+    pub fn get_exec(&self) -> Result<String> {
+        self.get_default_group()?.get_exec()
+    }
+
+    pub fn get_url(&self) -> Result<String> {
+        self.get_default_group()?.get_url()
     }
 
     fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
@@ -636,9 +671,34 @@ impl DesktopFile {
     }
 
     /// Get the group with header "Desktop Entry".
-    pub fn get_default_group(&self) -> Option<DesktopEntry> {
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use xdg::desktop_entry::DesktopFile;
+    ///
+    /// let desktop_entry = "
+    ///     [Desktop Entry]
+    ///     Type=Application
+    ///     Name=Foo
+    ///     Exec=Bar
+    ///    
+    ///     [Desktop Action Bar]
+    ///     Exec=foobar
+    ///     Name=Foo Bar
+    /// ";
+    ///
+    /// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
+    /// let name = desktop_entry_file.get_name().unwrap();
+    /// assert_eq!(name, "Foo");
+    /// let second_group = desktop_entry_file.groups[1].clone();
+    /// assert_eq!(second_group.get_name().unwrap(), "Foo Bar");
+    /// assert_eq!(second_group.entry_type, "Desktop Action Bar");
+    /// ```
+    ///
+    pub fn get_default_group(&self) -> Result<DesktopEntry> {
         // TODO Improve this function
-        Some(self.groups[0].clone())
+        Ok(self.groups[0].clone())
     }
 
     /// Validates the contents of a desktop entry. The error enum contains warnings.
