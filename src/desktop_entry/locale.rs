@@ -189,7 +189,7 @@ impl LocaleStrings {
         let mut values = vec![];
         for k in keys {
             if let Some(value) = hashmap.get(&k) {
-                let locale_string = parse_locale_strings(&k, value).unwrap();
+                let locale_string = parse_locale_strings(&k, value).ok()?;
                 values.push(locale_string)
             }
         }
@@ -212,7 +212,9 @@ impl LocaleStrings {
 pub fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
     let ptr = &value.to_string();
     let v = Some(ptr);
-    let values = v.parse()?.unwrap();
+    let values = v
+        .parse()?
+        .ok_or_else(|| Error::from(format!("Could not read {}", value)))?;
     if key.contains('[') {
         if key.ends_with(']') {
             let locale_as_vec: Vec<&str> = key.split('[').collect();

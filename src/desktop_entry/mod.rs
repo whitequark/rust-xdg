@@ -106,7 +106,7 @@ type Result<T> = std::result::Result<T, Error>;
 
 impl DesktopEntry {
     pub fn get_name(&self) -> Result<String> {
-        let name = self.name.clone().unwrap();
+        let name = &self.name.clone().ok_or_else(|| Error::from("Could not get name"))?;
         name.get_default()
     }
 
@@ -244,7 +244,8 @@ impl DesktopEntry {
     }
 
     fn check_group(&self) -> Result<()> {
-        let re = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$").unwrap();
+        let re = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$")
+            .map_err(|_| Error::from("Could not parse regex"))?;
         let group: &str = &self.entry_type;
         let mut err: Vec<String> = vec![];
         if !(group == DEFAULT_GROUP
@@ -536,7 +537,8 @@ impl DesktopFile {
         use std::fs::File;
         use std::io::prelude::*;
 
-        let mut file = File::create(filename).unwrap();
+        let mut file = File::create(filename)
+            .map_err(|_| Error::from(format!("Could not create file {}", filename)))?;
         if file.write_all(self.to_string().as_bytes()).is_ok() {
             Ok(())
         } else {
@@ -560,17 +562,22 @@ impl DesktopFile {
         self.get_default_group()?.get_url()
     }
 
-    fn load_ini(ini: &str) -> Vec<(String, HashMap<String, String>)> {
-        let i = Ini::load_from_file(ini).unwrap();
+    fn load_ini(ini: &str) -> Result<Vec<(String, HashMap<String, String>)>> {
+        let i = Ini::load_from_file(ini)
+            .map_err(|_| Error::from(format!("Could not load ini {}", ini)))?;
         let mut result = vec![];
         for (sec, prop) in i.iter() {
             let mut s = HashMap::new();
             for (k, v) in prop.iter() {
                 s.insert(k.to_string(), v.to_string());
             }
-            result.push((sec.unwrap().to_string(), s));
+            result.push((
+                sec.ok_or_else(|| Error::from(format!("Could not read {:?}", sec)))?
+                    .to_string(),
+                s,
+            ));
         }
-        result
+        Ok(result)
     }
 
     fn from_hash_map(hash: &[(String, HashMap<String, String>)], filename: &str) -> Result<Self> {
@@ -589,7 +596,7 @@ impl DesktopFile {
 
     /// Load a `DesktopFile` from a file `filename`.
     pub fn from_file(filename: &str) -> Result<Self> {
-        let hash = Self::load_ini(filename);
+        let hash = Self::load_ini(filename)?;
         Self::from_hash_map(&hash, filename)
     }
 
@@ -601,7 +608,10 @@ impl DesktopFile {
         let extension = Path::new(&self.filename)
             .extension()
             .and_then(OsStr::to_str)
-            .unwrap();
+            .ok_or_else(|| Error::from(format!(
+                "Could not convert extension of {} to String",
+                &self.filename
+            )))?;
         match extension {
             ".desktop" => (),
             ".directory" => (),
@@ -613,11 +623,14 @@ impl DesktopFile {
             }
         };
 
-        let etype = &self.get_default_group().unwrap().type_string.unwrap();
-        if extension == ".directory" && etype != "Directory" {
-            err += &format!("File extension is .directory, but Type is {}", etype);
-        } else if extension == ".desktop" && etype == "Directory" {
-            err += "Files with Type=Directory should have the extension .directory";
+        if let Some(etype) = &self.get_default_group()?.type_string {
+            if extension == ".directory" && etype != "Directory" {
+                err += &format!("File extension is .directory, but Type is {}", etype);
+            } else if extension == ".desktop" && etype == "Directory" {
+                err += "Files with Type=Directory should have the extension .directory";
+            }
+        } else {
+            return Err(Error::from("key 'Type' is missing"));
         }
 
         Ok(())
@@ -820,7 +833,8 @@ impl Parse<Strings> for Option<&String> {
 impl std::str::FromStr for DesktopFile {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-        let i = Ini::load_from_str(s).unwrap();
+        let i = Ini::load_from_str(s)
+            .map_err(|_| Error::from(format!("Could not load ini from {}", s)))?;
 
         let mut result = vec![];
         for (sec, prop) in i.iter() {
@@ -828,7 +842,11 @@ impl std::str::FromStr for DesktopFile {
             for (k, v) in prop.iter() {
                 s.insert(k.to_string(), v.to_string());
             }
-            result.push((sec.unwrap().to_string(), s));
+            result.push((
+                sec.ok_or_else(|| Error::from(format!("Could not read {:?}", sec)))?
+                    .to_string(),
+                s,
+            ));
         }
         let desktop_file = Self::from_hash_map(&result, "str.desktop")?;
         Ok(desktop_file)
