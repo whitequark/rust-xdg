@@ -5,17 +5,17 @@
 //!
 
 // TODO Add custom X- groups support
+use self::error::Error;
 use self::locale::*;
 use self::locale::{LocaleLang, LocaleString};
-use self::error::Error;
 
 use ini::Ini;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 
-pub mod locale;
 mod error;
+pub mod locale;
 
 #[cfg(test)]
 mod test;
@@ -106,7 +106,6 @@ pub struct DesktopEntry {
 type Result<T> = std::result::Result<T, Error>;
 
 impl DesktopEntry {
-
     pub fn get_name(&self) -> Result<String> {
         let name = self.name.clone().unwrap();
         name.get_default()
@@ -132,50 +131,36 @@ impl DesktopEntry {
     }
 
     fn from_hash_map(section: String, hashmap: &HashMap<String, String>) -> Result<Self> {
-        use std::str::FromStr;
-
-        let type_string = hashmap.get("Type").map(|x| x.to_string());
-        let version = hashmap.get("Version").map(|x| x.to_string());
+        // String type
+        let type_string = hashmap.get("Type").cloned();
+        let version = hashmap.get("Version").cloned();
+        let icon = hashmap.get("Icon").cloned();
+        let exec = hashmap.get("Exec").cloned();
+        let try_exec = hashmap.get("TryExec").cloned();
+        let path = hashmap.get("Path").cloned();
+        let startup_wm_class = hashmap.get("StartupWMClass").cloned();
+        let url = hashmap.get("URL").cloned();
+        // LocalString type
         let name = LocaleString::from_hashmap("Name", hashmap);
         let generic_name = LocaleString::from_hashmap("GenericName", hashmap);
-        let no_display = hashmap
-            .get("NoDisplay")
-            .map(|x| FromStr::from_str(x).ok())
-            .flatten();
         let comment = LocaleString::from_hashmap("Comment", hashmap);
-        let icon = hashmap.get("Icon").map(|x| x.to_string());
-        let hidden = hashmap
-            .get("Hidden")
-            .map(|x| FromStr::from_str(x).ok())
-            .flatten();
-        let only_show_in = hashmap.get("OnlyShowIn").map(|x| parse_strings(x));
-        let not_show_in = hashmap.get("NotShowIn").map(|x| parse_strings(x));
-        let dbus_activatable = hashmap
-            .get("DBusActivatable")
-            .map(|x| FromStr::from_str(x).ok())
-            .flatten();
-        let try_exec = hashmap.get("TryExec").map(|x| x.to_string());
-        let exec = hashmap.get("Exec").map(|x| x.to_string());
-        let path = hashmap.get("Path").map(|x| x.to_string());
-        let terminal = hashmap
-            .get("Terminal")
-            .map(|x| FromStr::from_str(x).ok())
-            .flatten();
-        let actions = hashmap.get("Actions").map(|x| parse_strings(x));
-        let mime_type = hashmap.get("MimeType").map(|x| parse_strings(x));
-        let categories = hashmap.get("Categories").map(|x| parse_strings(x));
-        let implements = hashmap.get("Implements").map(|x| parse_strings(x));
+        // LocaleStrings type
         let keywords = LocaleStrings::from_hashmap("Keywords", hashmap);
-        let startup_notify = hashmap
-            .get("StartupNotify")
-            .map(|x| FromStr::from_str(x).ok())
-            .flatten();
-        let startup_wm_class = hashmap.get("StartupWMClass").map(|x| x.to_string());
-        let url = hashmap.get("URL").map(|x| x.to_string());
-        let prefers_non_default_gpu = hashmap
-            .get("PrefersNonDefaultGPU")
-            .map(|x| FromStr::from_str(x).ok())
-            .flatten();
+        // Bool type
+        let no_display = hashmap.get("NoDisplay").parse()?;
+        let hidden = hashmap.get("Hidden").parse()?;
+        let dbus_activatable = hashmap.get("DBusActivatable").parse()?;
+        let terminal = hashmap.get("Terminal").parse()?;
+        let startup_notify = hashmap.get("StartupNotify").parse()?;
+        let prefers_non_default_gpu = hashmap.get("PrefersNonDefaultGPU").parse()?;
+        // Strings type
+        let only_show_in = hashmap.get("OnlyShowIn").parse()?;
+        let not_show_in = hashmap.get("NotShowIn").parse()?;
+        let actions = hashmap.get("Actions").parse()?;
+        let mime_type = hashmap.get("MimeType").parse()?;
+        let categories = hashmap.get("Categories").parse()?;
+        let implements = hashmap.get("Implements").parse()?;
+
         let desktop_entry = DesktopEntry {
             entry_type: section.to_string(),
             type_string,
@@ -203,6 +188,7 @@ impl DesktopEntry {
             url,
             prefers_non_default_gpu,
         };
+
         desktop_entry.validate()?;
         Ok(desktop_entry)
     }
@@ -710,19 +696,14 @@ impl DesktopFile {
     }
 }
 
-fn parse_strings(s: &str) -> Strings {
-    s.split(";")
-        .map(|x| x.to_string())
-        .filter(|x| x.len() > 0)
-        .collect::<Strings>()
-}
-
 impl fmt::Display for DesktopFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut string = String::new();
         for group in &self.groups {
+            string += "\n";
             string += &group.to_string();
         }
+        let string = string.trim_start_matches('\n').to_string();
         write!(f, "{}", string)
     }
 }
@@ -818,5 +799,37 @@ impl fmt::Display for DesktopEntry {
         append_strings(&self.keywords, "Keywords");
 
         write!(f, "{}", string)
+    }
+}
+
+pub trait Parse<T> {
+    fn parse(&self) -> Result<Option<T>>;
+}
+
+impl Parse<bool> for Option<&String> {
+    fn parse(&self) -> Result<Option<bool>> {
+        if let Some(s) = self {
+            use std::str::FromStr;
+            let err = Error::from(format!("{} is not a boolean",s));
+            FromStr::from_str(s).map_err(|_| err).map(|x| Some(x))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+impl Parse<Strings> for Option<&String> {
+    fn parse(&self) -> Result<Option<Strings>> {
+        if let Some(s) = self {
+            let string = s.split(";")
+                .map(|x| x.to_string())
+                .filter(|x| x.len() > 0)
+                .collect::<Strings>();
+            if string.is_empty() {
+                Err(Error::from(format!("{} is not a valid sequence of strings", s)))
+            } else {
+               Ok(Some(string))
+            }
+        } else { Ok(None) }
     }
 }

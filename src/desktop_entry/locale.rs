@@ -1,6 +1,5 @@
-use crate::desktop_entry::parse_strings;
 use crate::desktop_entry::Error;
-use crate::desktop_entry::{Result, Strings};
+use crate::desktop_entry::{Result, Strings, Parse};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
@@ -56,10 +55,14 @@ pub struct Locales {
 }
 
 #[derive(Clone, Debug)]
-pub struct LocaleString { pub locs: Vec<Locale> }
+pub struct LocaleString {
+    pub locs: Vec<Locale>,
+}
 
 #[derive(Clone, Debug)]
-pub struct LocaleStrings { pub locs: Vec<Locales> }
+pub struct LocaleStrings {
+    pub locs: Vec<Locales>,
+}
 
 impl TryFrom<Locales> for Locale {
     type Error = Error;
@@ -67,12 +70,10 @@ impl TryFrom<Locales> for Locale {
         if locales.values.is_empty() {
             Err(Error::from("Could not convert Locales to Locale"))
         } else {
-            Ok(
-                Self {
-                    value: locales.values[0].clone(),
-                    lang: locales.lang,
-                }
-            )
+            Ok(Self {
+                value: locales.values[0].clone(),
+                lang: locales.lang,
+            })
         }
     }
 }
@@ -97,7 +98,7 @@ impl LocaleString {
             if let LocaleLang::Lang(locale_lang) = locale.lang.clone() {
                 if lang == locale_lang {
                     let val = locale.value.clone();
-                    return Ok(val)
+                    return Ok(val);
                 }
             }
         }
@@ -105,7 +106,8 @@ impl LocaleString {
     }
 
     pub fn get_default(&self) -> Result<String> {
-        let default: Vec<Locale> = self.locs
+        let default: Vec<Locale> = self
+            .locs
             .iter()
             .filter(|x| x.lang.is_default())
             .map(|x| x.clone())
@@ -117,18 +119,18 @@ impl LocaleString {
         }
     }
 
-    pub fn from_hashmap(
-        key: &str,
-        hashmap: &HashMap<String, String>,
-    ) -> Option<LocaleString> {
+    pub fn from_hashmap(key: &str, hashmap: &HashMap<String, String>) -> Option<LocaleString> {
         use std::convert::TryInto;
 
         if let Some(locale_strings) = LocaleStrings::from_hashmap(key, hashmap) {
-            let locale_string: Vec<Locale> = locale_strings.locs
+            let locale_string: Vec<Locale> = locale_strings
+                .locs
                 .iter()
                 .map(|x| x.clone().try_into().unwrap())
                 .collect();
-            Some(LocaleString { locs: locale_string })
+            Some(LocaleString {
+                locs: locale_string,
+            })
         } else {
             None
         }
@@ -141,7 +143,8 @@ impl LocaleStrings {
     }
 
     pub fn get_default(&self) -> Result<Strings> {
-        let default: Vec<Locales> = self.locs
+        let default: Vec<Locales> = self
+            .locs
             .iter()
             .filter(|x| x.lang.is_default())
             .map(|x| x.clone())
@@ -159,30 +162,27 @@ impl LocaleStrings {
             if let LocaleLang::Lang(locale_lang) = locale.lang.clone() {
                 if lang == locale_lang {
                     let val = locale.values.clone();
-                    return Ok(val)
+                    return Ok(val);
                 }
             }
         }
         Err(Error::from(""))
     }
 
-    pub fn from_hashmap(
-        key: &str,
-        hashmap: &HashMap<String, String>,
-    ) -> Option<LocaleStrings> {
+    pub fn from_hashmap(key: &str, hashmap: &HashMap<String, String>) -> Option<LocaleStrings> {
         let keys: Vec<String> = hashmap
             .keys()
             .filter(|x| x.starts_with(key))
             .map(|x| x.clone())
             .collect();
-        let mut values = vec!() ;
+        let mut values = vec![];
         for k in keys {
             if let Some(value) = hashmap.get(&k) {
                 let locale_string = parse_locale_strings(&k, value).unwrap();
                 values.push(locale_string)
             }
         }
-        Some(LocaleStrings{ locs: values })
+        Some(LocaleStrings { locs: values })
     }
 }
 
@@ -199,7 +199,9 @@ impl LocaleStrings {
 /// }
 /// ```
 pub fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
-    let values = parse_strings(value);
+    let ptr = &value.to_string();
+    let v = Some(ptr);
+    let values = v.parse()?.unwrap();
     if key.contains("[") {
         if key.contains("]") {
             let locale_as_vec: Vec<&str> = key.split("[").collect();
