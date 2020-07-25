@@ -106,7 +106,10 @@ type Result<T> = std::result::Result<T, Error>;
 
 impl Group {
     pub fn get_name(&self) -> Result<String> {
-        let name = &self.name.clone().ok_or_else(|| Error::from("Could not get name"))?;
+        let name = &self
+            .name
+            .clone()
+            .ok_or_else(|| Error::from("Could not get name"))?;
         name.get_default()
     }
 
@@ -141,11 +144,11 @@ impl Group {
         // IconString
         let icon = hashmap.get("Icon").cloned();
         // LocalString type
-        let name = LocaleString::from_hashmap("Name", hashmap);
-        let generic_name = LocaleString::from_hashmap("GenericName", hashmap);
-        let comment = LocaleString::from_hashmap("Comment", hashmap);
+        let name = LocaleString::from_hashmap("Name", hashmap)?;
+        let generic_name = LocaleString::from_hashmap("GenericName", hashmap)?;
+        let comment = LocaleString::from_hashmap("Comment", hashmap)?;
         // LocaleStrings type
-        let keywords = LocaleStrings::from_hashmap("Keywords", hashmap);
+        let keywords = LocaleStrings::from_hashmap("Keywords", hashmap)?;
         // Bool type
         let no_display = hashmap.get("NoDisplay").parse()?;
         let hidden = hashmap.get("Hidden").parse()?;
@@ -608,10 +611,12 @@ impl DesktopEntry {
         let extension = Path::new(&self.filename)
             .extension()
             .and_then(OsStr::to_str)
-            .ok_or_else(|| Error::from(format!(
-                "Could not convert extension of {} to String",
-                &self.filename
-            )))?;
+            .ok_or_else(|| {
+                Error::from(format!(
+                    "Could not convert extension of {} to String",
+                    &self.filename
+                ))
+            })?;
         match extension {
             ".desktop" => (),
             ".directory" => (),

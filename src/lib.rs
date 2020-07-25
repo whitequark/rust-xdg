@@ -277,24 +277,24 @@ impl BaseDirectories {
             }
         }
 
-        let home = dirs::home_dir().ok_or(Error::new(HomeMissing))?;
+        let home = dirs::home_dir().ok_or_else(|| Error::new(HomeMissing))?;
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .and_then(abspath)
-                              .unwrap_or(home.join(".local/share"));
+                              .unwrap_or_else(|| home.join(".local/share"));
         let config_home = env_var("XDG_CONFIG_HOME")
                               .and_then(abspath)
-                              .unwrap_or(home.join(".config"));
+                              .unwrap_or_else(|| home.join(".config"));
         let cache_home  = env_var("XDG_CACHE_HOME")
                               .and_then(abspath)
-                              .unwrap_or(home.join(".cache"));
+                              .unwrap_or_else(|| home.join(".cache"));
         let data_dirs   = env_var("XDG_DATA_DIRS")
                               .and_then(abspaths)
-                              .unwrap_or(vec![PathBuf::from("/usr/local/share"),
+                              .unwrap_or_else(|| vec![PathBuf::from("/usr/local/share"),
                                               PathBuf::from("/usr/share")]);
         let config_dirs = env_var("XDG_CONFIG_DIRS")
                               .and_then(abspaths)
-                              .unwrap_or(vec![PathBuf::from("/etc/xdg")]);
+                              .unwrap_or_else(|| vec![PathBuf::from("/etc/xdg")]);
         let runtime_dir = env_var("XDG_RUNTIME_DIR")
                               .and_then(abspath); // optional
 

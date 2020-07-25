@@ -1,7 +1,7 @@
 use crate::desktop_entry::Error;
 use crate::desktop_entry::{Parse, Result, Strings};
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 #[derive(Clone, Debug)]
 pub enum LocaleLang {
@@ -107,7 +107,7 @@ impl LocaleString {
                 }
             }
         }
-        Err(Error::from(""))
+        Err(Error::from(format!("Could not read {:?}", &self)))
     }
 
     pub fn get_default(&self) -> Result<String> {
@@ -115,7 +115,6 @@ impl LocaleString {
             .locs
             .iter()
             .filter(|x| x.lang.is_default())
-            // .map(|x| x.clone())
             .cloned()
             .collect();
         if default.is_empty() {
@@ -125,20 +124,21 @@ impl LocaleString {
         }
     }
 
-    pub fn from_hashmap(key: &str, hashmap: &HashMap<String, String>) -> Option<LocaleString> {
-        use std::convert::TryInto;
-
-        if let Some(locale_strings) = LocaleStrings::from_hashmap(key, hashmap) {
+    pub fn from_hashmap(
+        key: &str,
+        hashmap: &HashMap<String, String>,
+    ) -> Result<Option<LocaleString>> {
+        if let Some(locale_strings) = LocaleStrings::from_hashmap(key, hashmap)? {
             let locale_string: Vec<Locale> = locale_strings
                 .locs
-                .iter()
-                .map(|x| x.clone().try_into().unwrap())
-                .collect();
-            Some(LocaleString {
+                .into_iter()
+                .map(|x| x.try_into())
+                .collect::<Result<Vec<Locale>>>()?;
+            Ok(Some(LocaleString {
                 locs: locale_string,
-            })
+            }))
         } else {
-            None
+            Ok(None)
         }
     }
 }
@@ -158,7 +158,6 @@ impl LocaleStrings {
             .iter()
             .filter(|x| x.lang.is_default())
             .cloned()
-            // .map(|x| x.clone())
             .collect();
         if default.is_empty() {
             Err(Error::from("Default locale is missing"))
@@ -177,10 +176,13 @@ impl LocaleStrings {
                 }
             }
         }
-        Err(Error::from(""))
+        Err(Error::from(format!("Could not read {:?}", &self)))
     }
 
-    pub fn from_hashmap(key: &str, hashmap: &HashMap<String, String>) -> Option<LocaleStrings> {
+    pub fn from_hashmap(
+        key: &str,
+        hashmap: &HashMap<String, String>,
+    ) -> Result<Option<LocaleStrings>> {
         let keys: Vec<String> = hashmap
             .keys()
             .filter(|x| x.starts_with(key))
@@ -189,11 +191,11 @@ impl LocaleStrings {
         let mut values = vec![];
         for k in keys {
             if let Some(value) = hashmap.get(&k) {
-                let locale_string = parse_locale_strings(&k, value).ok()?;
+                let locale_string = parse_locale_strings(&k, value)?;
                 values.push(locale_string)
             }
         }
-        Some(LocaleStrings { locs: values })
+        Ok(Some(LocaleStrings { locs: values }))
     }
 }
 
