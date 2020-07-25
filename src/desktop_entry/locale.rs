@@ -1,5 +1,5 @@
 use crate::desktop_entry::Error;
-use crate::desktop_entry::{Result, Strings, Parse};
+use crate::desktop_entry::{Parse, Result, Strings};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
@@ -15,6 +15,7 @@ pub enum LocaleLang {
 /// # Example
 /// ```
 /// use xdg::desktop_entry::DesktopFile;
+/// use std::str::FromStr;
 ///
 /// let desktop_entry = "
 ///     [Desktop Entry]
@@ -92,6 +93,10 @@ impl LocaleString {
         self.locs.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.locs.len() == 0
+    }
+
     pub fn get(&self, lang: &str) -> Result<String> {
         let lang = lang.to_string();
         for locale in self.locs.iter() {
@@ -110,7 +115,8 @@ impl LocaleString {
             .locs
             .iter()
             .filter(|x| x.lang.is_default())
-            .map(|x| x.clone())
+            // .map(|x| x.clone())
+            .cloned()
             .collect();
         if default.is_empty() {
             Err(Error::from("Default locale is missing"))
@@ -142,12 +148,17 @@ impl LocaleStrings {
         self.locs.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.locs.is_empty()
+    }
+
     pub fn get_default(&self) -> Result<Strings> {
         let default: Vec<Locales> = self
             .locs
             .iter()
             .filter(|x| x.lang.is_default())
-            .map(|x| x.clone())
+            .cloned()
+            // .map(|x| x.clone())
             .collect();
         if default.is_empty() {
             Err(Error::from("Default locale is missing"))
@@ -173,7 +184,7 @@ impl LocaleStrings {
         let keys: Vec<String> = hashmap
             .keys()
             .filter(|x| x.starts_with(key))
-            .map(|x| x.clone())
+            .cloned()
             .collect();
         let mut values = vec![];
         for k in keys {
@@ -190,7 +201,7 @@ impl LocaleStrings {
 ///
 /// # Example
 /// ```
-/// use xdg::desktop_entry::locale::{parse_locale_strings, LocaleLang};
+/// use xdg::desktop_entry::{parse_locale_strings, LocaleLang};
 ///
 /// let locales = parse_locale_strings("Name[jp]", "銹").unwrap();
 /// assert_eq!(&locales.values[0], "銹");
@@ -202,9 +213,9 @@ pub fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
     let ptr = &value.to_string();
     let v = Some(ptr);
     let values = v.parse()?.unwrap();
-    if key.contains("[") {
-        if key.contains("]") {
-            let locale_as_vec: Vec<&str> = key.split("[").collect();
+    if key.contains('[') {
+        if key.ends_with(']') {
+            let locale_as_vec: Vec<&str> = key.split('[').collect();
             let locale_string = locale_as_vec[1].trim_end_matches(']').to_string();
             let lang = LocaleLang::Lang(locale_string);
             let locale_string = Locales { values, lang };
@@ -212,7 +223,7 @@ pub fn parse_locale_strings(key: &str, value: &str) -> Result<Locales> {
         } else {
             Err(Error::from(format!("Malformed locale string {}", key)))
         }
-    } else if key.contains("]") {
+    } else if key.ends_with(']') {
         Err(Error::from(format!("Malformed locale string {}", key)))
     } else {
         Ok(Locales {

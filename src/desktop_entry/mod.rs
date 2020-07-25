@@ -5,10 +5,8 @@
 //!
 
 // TODO Add custom X- groups support
-use self::error::Error;
-use self::locale::*;
-use self::locale::{LocaleLang, LocaleString};
-
+pub use self::error::Error;
+pub use self::locale::*;
 use ini::Ini;
 use regex::Regex;
 use std::collections::HashMap;
@@ -45,6 +43,7 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 ///
 /// ```
 /// use xdg::desktop_entry::DesktopFile;
+/// use std::str::FromStr;
 ///
 /// let desktop_entry = "
 ///     [Desktop Entry]
@@ -130,7 +129,7 @@ impl DesktopEntry {
         self.url.clone().ok_or(err)
     }
 
-    fn from_hash_map(section: String, hashmap: &HashMap<String, String>) -> Result<Self> {
+    fn from_hash_map(entry_type: String, hashmap: &HashMap<String, String>) -> Result<Self> {
         // String type
         let type_string = hashmap.get("Type").cloned();
         let version = hashmap.get("Version").cloned();
@@ -163,7 +162,7 @@ impl DesktopEntry {
         let implements = hashmap.get("Implements").parse()?;
 
         let desktop_entry = DesktopEntry {
-            entry_type: section.to_string(),
+            entry_type,
             type_string,
             version,
             name,
@@ -206,7 +205,7 @@ impl DesktopEntry {
                     warning.push(format!("'{}' is not a registered OnlyShowIn value", item));
                 }
             }
-            if warning.len() > 0 {
+            if !warning.is_empty() {
                 return Err(Error(warning));
             } else {
                 return Ok(());
@@ -227,7 +226,7 @@ impl DesktopEntry {
                     warning.push(format!("'{}' is not a registered OnlyShowIn value", item));
                 }
             }
-            if warning.len() > 0 {
+            if !warning.is_empty() {
                 return Err(Error(warning));
             } else {
                 return Ok(());
@@ -245,19 +244,18 @@ impl DesktopEntry {
     }
 
     fn check_group(&self) -> Result<()> {
-        let re1 = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$").unwrap();
-        let re2 = Regex::new(r"^X-").unwrap();
+        let re = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$").unwrap();
         let group: &str = &self.entry_type;
         let mut err: Vec<String> = vec![];
         if !(group == DEFAULT_GROUP
-            || re1.is_match(group)
-            || re2.is_match(group) && group.is_ascii())
+            || re.is_match(group)
+            || group.starts_with("X-") && group.is_ascii())
         {
             err.push(format!("Invalid Group name: {}", group));
         } else if self.only_show_in.is_some() && self.not_show_in.is_some() {
             err.push("Group may either have OnlyShowIn or NotShowIn, but not both".to_string());
         }
-        if err.len() > 0 {
+        if !err.is_empty() {
             Err(Error(err))
         } else {
             Ok(())
@@ -421,7 +419,7 @@ impl DesktopEntry {
             let x: Vec<String> = invalid_categories
                 .map(|x| format!("{} is not a registered Category", x))
                 .collect();
-            if x.len() > 0 {
+            if !x.is_empty() {
                 return Err(Error(x));
             }
         }
@@ -431,11 +429,7 @@ impl DesktopEntry {
     fn is_default_grop(&self) -> bool {
         // TODO verify there are no more cases
         let group: &str = &self.entry_type;
-        if group == DEFAULT_GROUP {
-            true
-        } else {
-            false
-        }
+        group == DEFAULT_GROUP
     }
 
     fn check_extras(&self) -> Result<()> {
@@ -452,7 +446,7 @@ impl DesktopEntry {
             err.push("Key 'Name' is missing".to_string());
         }
 
-        if err.len() > 0 {
+        if !err.is_empty() {
             Err(Error(err))
         } else {
             Ok(())
@@ -473,28 +467,24 @@ impl DesktopEntry {
                 ))
             };
 
-            if etype == "Application" {
-                if self.exec.is_none() {
-                    warnings.push("Type=Application needs 'Exec' key".to_string());
-                }
+            if etype == "Application" && self.exec.is_none() {
+                warnings.push("Type=Application needs 'Exec' key".to_string());
             }
 
-            if etype == "Link" {
-                if self.url.is_none() {
-                    warnings.push("Type=Link needs 'URL' key".to_string());
-                }
+            if etype == "Link" && self.url.is_none() {
+                warnings.push("Type=Link needs 'URL' key".to_string());
             }
         }
 
-        if let Some(_) = &self.only_show_in {
+        if self.only_show_in.is_some() {
             self.check_only_show_in()?;
         }
 
-        if let Some(_) = &self.not_show_in {
+        if self.not_show_in.is_some() {
             self.check_not_show_in()?;
         }
 
-        if warnings.len() > 0 {
+        if !warnings.is_empty() {
             Err(Error(warnings))
         } else {
             Ok(())
@@ -503,13 +493,13 @@ impl DesktopEntry {
 
     /// Validates the group, the error `Err(error)` contains the warnings.
     pub fn validate(&self) -> Result<()> {
-        &self.check_keys()?;
-        &self.check_group()?;
-        &self.check_extras()?;
-        &self.check_try_exec()?;
-        &self.check_not_show_in()?;
-        &self.check_only_show_in()?;
-        &self.check_categories()?;
+        self.check_keys()?;
+        self.check_group()?;
+        self.check_extras()?;
+        self.check_try_exec()?;
+        self.check_not_show_in()?;
+        self.check_only_show_in()?;
+        self.check_categories()?;
         Ok(())
     }
 }
@@ -521,6 +511,7 @@ impl DesktopEntry {
 /// use std::fs::File;
 /// use std::io::prelude::*;
 /// use std::error::Error;
+/// use std::str::FromStr;
 ///
 /// fn main() -> Result<(), Box<dyn Error>> {
 ///     let desktop_entry_contents = "[Desktop Entry]\n\
@@ -546,7 +537,7 @@ impl DesktopFile {
         use std::io::prelude::*;
 
         let mut file = File::create(filename).unwrap();
-        if let Ok(_) = file.write_all(self.to_string().as_bytes()) {
+        if file.write_all(self.to_string().as_bytes()).is_ok() {
             Ok(())
         } else {
             Err(Error::from("Could not write"))
@@ -582,41 +573,7 @@ impl DesktopFile {
         result
     }
 
-    /// Loads a desktop entry from a string.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use xdg::desktop_entry::DesktopFile;
-    ///
-    /// let desktop_entry = "
-    ///     [Desktop Entry]
-    ///     Type=Application
-    ///     Name=Foo
-    ///     Exec=Bar
-    /// ";
-    /// let loaded_entry = DesktopFile::from_str(desktop_entry).unwrap();
-    /// assert_eq!(loaded_entry.get_name().unwrap(), "Foo".to_string());
-    /// ```
-    pub fn from_str(input: &str) -> Result<Self> {
-        let i = Ini::load_from_str(input).unwrap();
-
-        let mut result = vec![];
-        for (sec, prop) in i.iter() {
-            let mut s = HashMap::new();
-            for (k, v) in prop.iter() {
-                s.insert(k.to_string(), v.to_string());
-            }
-            result.push((sec.unwrap().to_string(), s));
-        }
-        let desktop_file = Self::from_hash_map(&result, "str.desktop")?;
-        Ok(desktop_file)
-    }
-
-    fn from_hash_map(
-        hash: &Vec<(String, HashMap<String, String>)>,
-        filename: &str,
-    ) -> Result<Self> {
+    fn from_hash_map(hash: &[(String, HashMap<String, String>)], filename: &str) -> Result<Self> {
         let mut groups = vec![];
         for (entry_name, entry) in hash.iter() {
             groups.push(DesktopEntry::from_hash_map(entry_name.into(), &entry)?);
@@ -633,8 +590,7 @@ impl DesktopFile {
     /// Load a `DesktopFile` from a file `filename`.
     pub fn from_file(filename: &str) -> Result<Self> {
         let hash = Self::load_ini(filename);
-        let desktop_file = Self::from_hash_map(&hash, filename);
-        desktop_file
+        Self::from_hash_map(&hash, filename)
     }
 
     fn check_extension(&self) -> Result<()> {
@@ -658,7 +614,7 @@ impl DesktopFile {
         };
 
         let etype = &self.get_default_group().unwrap().type_string.unwrap();
-        if extension == ".directory" && !(etype == "Directory") {
+        if extension == ".directory" && etype != "Directory" {
             err += &format!("File extension is .directory, but Type is {}", etype);
         } else if extension == ".desktop" && etype == "Directory" {
             err += "Files with Type=Directory should have the extension .directory";
@@ -673,13 +629,14 @@ impl DesktopFile {
     ///
     /// ```
     /// use xdg::desktop_entry::DesktopFile;
+    /// use std::str::FromStr;
     ///
     /// let desktop_entry = "
     ///     [Desktop Entry]
     ///     Type=Application
     ///     Name=Foo
     ///     Exec=Bar
-    ///    
+    ///
     ///     [Desktop Action Bar]
     ///     Exec=foobar
     ///     Name=Foo Bar
@@ -812,8 +769,9 @@ impl Parse<bool> for Option<&String> {
     fn parse(&self) -> Result<Option<bool>> {
         if let Some(s) = self {
             use std::str::FromStr;
-            let err = Error::from(format!("{} is not a valid boolean",s));
-            FromStr::from_str(s).map_err(|_| err).map(|x| Some(x))
+
+            let err = Error::from(format!("{} is not a valid boolean", s));
+            FromStr::from_str(s).map_err(|_| err).map(Some)
         } else {
             Ok(None)
         }
@@ -823,15 +781,56 @@ impl Parse<bool> for Option<&String> {
 impl Parse<Strings> for Option<&String> {
     fn parse(&self) -> Result<Option<Strings>> {
         if let Some(s) = self {
-            let string = s.split(";")
+            let string = s
+                .split(';')
                 .map(|x| x.to_string())
-                .filter(|x| x.len() > 0)
+                .filter(|x| !x.is_empty())
                 .collect::<Strings>();
             if string.is_empty() {
-                Err(Error::from(format!("{} is not a valid sequence of strings", s)))
+                Err(Error::from(format!(
+                    "{} is not a valid sequence of strings",
+                    s
+                )))
             } else {
-               Ok(Some(string))
+                Ok(Some(string))
             }
-        } else { Ok(None) }
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Loads a desktop entry from a string.
+///
+/// # Example
+///
+/// ```
+/// use xdg::desktop_entry::DesktopFile;
+/// use std::str::FromStr;
+///
+/// let desktop_entry = "
+///     [Desktop Entry]
+///     Type=Application
+///     Name=Foo
+///     Exec=Bar
+/// ";
+/// let loaded_entry = DesktopFile::from_str(desktop_entry).unwrap();
+/// assert_eq!(loaded_entry.get_name().unwrap(), "Foo".to_string());
+/// ```
+impl std::str::FromStr for DesktopFile {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        let i = Ini::load_from_str(s).unwrap();
+
+        let mut result = vec![];
+        for (sec, prop) in i.iter() {
+            let mut s = HashMap::new();
+            for (k, v) in prop.iter() {
+                s.insert(k.to_string(), v.to_string());
+            }
+            result.push((sec.unwrap().to_string(), s));
+        }
+        let desktop_file = Self::from_hash_map(&result, "str.desktop")?;
+        Ok(desktop_file)
     }
 }

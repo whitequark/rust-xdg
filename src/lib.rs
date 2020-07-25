@@ -1,10 +1,5 @@
 #![cfg(any(unix, target_os = "redox"))]
 
-extern crate dirs;
-extern crate regex;
-extern crate ini;
-extern crate which;
-
 pub mod desktop_entry;
 
 pub use crate::desktop_entry::{DesktopFile,DesktopEntry};
@@ -113,7 +108,7 @@ pub struct BaseDirectoriesError {
 impl BaseDirectoriesError {
     fn new(kind: BaseDirectoriesErrorKind) -> BaseDirectoriesError {
         BaseDirectoriesError {
-            kind: kind,
+            kind,
         }
     }
 }
@@ -307,12 +302,12 @@ impl BaseDirectories {
         Ok(BaseDirectories {
             user_prefix: prefix.join(profile),
             shared_prefix: prefix,
-            data_home: data_home,
-            config_home: config_home,
-            cache_home: cache_home,
-            data_dirs: data_dirs,
-            config_dirs: config_dirs,
-            runtime_dir: runtime_dir,
+            data_home,
+            config_home,
+            cache_home,
+            data_dirs,
+            config_dirs,
+            runtime_dir,
         })
     }
 
@@ -592,7 +587,7 @@ fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         Some(parent) => fs::create_dir_all(home.join(parent))?,
         None => fs::create_dir_all(home)?,
     }
-    Ok(PathBuf::from(home.join(path.as_ref())))
+    Ok(home.join(path.as_ref()))
 }
 
 fn create_directory<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
@@ -617,7 +612,7 @@ fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
     inner(path.as_ref())
 }
 
-fn read_file(home: &PathBuf, dirs: &Vec<PathBuf>,
+fn read_file(home: &PathBuf, dirs: &[PathBuf],
              user_prefix: &Path, shared_prefix: &Path, path: &Path)
              -> Option<PathBuf> {
     let full_path = home.join(user_prefix).join(path);
@@ -641,7 +636,7 @@ pub struct FileFindIterator {
 }
 
 impl FileFindIterator {
-    fn new(home: &PathBuf, dirs: &Vec<PathBuf>,
+    fn new(home: &PathBuf, dirs: &[PathBuf],
            user_prefix: &Path, shared_prefix: &Path, path: &Path)
            -> FileFindIterator {
        let mut search_dirs = Vec::new();
@@ -650,7 +645,7 @@ impl FileFindIterator {
        }
        search_dirs.push(home.join(user_prefix));
        FileFindIterator {
-           search_dirs: search_dirs,
+           search_dirs,
            position: 0,
            relpath: path.to_path_buf(),
        }

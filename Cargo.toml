@@ -12,12 +12,13 @@ authors = [
     "Ben Longbons <b.r.longbons@gmail.com>",
     "whitequark <whitequark@whitequark.org>"
 ]
+edition = "2018"
 
 [lib]
 doctest = true
 
 [dependencies]
-dirs = "1.0"
+dirs = "3.0"
 regex = "1"
 rust-ini = "0"
 which = "4.0"
