@@ -134,12 +134,13 @@ impl DesktopEntry {
         // String type
         let type_string = hashmap.get("Type").cloned();
         let version = hashmap.get("Version").cloned();
-        let icon = hashmap.get("Icon").cloned();
         let exec = hashmap.get("Exec").cloned();
         let try_exec = hashmap.get("TryExec").cloned();
         let path = hashmap.get("Path").cloned();
         let startup_wm_class = hashmap.get("StartupWMClass").cloned();
         let url = hashmap.get("URL").cloned();
+        // IconString
+        let icon = hashmap.get("Icon").cloned();
         // LocalString type
         let name = LocaleString::from_hashmap("Name", hashmap);
         let generic_name = LocaleString::from_hashmap("GenericName", hashmap);
@@ -477,6 +478,7 @@ impl DesktopEntry {
                     warnings.push("Type=Application needs 'Exec' key".to_string());
                 }
             }
+
             if etype == "Link" {
                 if self.url.is_none() {
                     warnings.push("Type=Link needs 'URL' key".to_string());
@@ -521,7 +523,11 @@ impl DesktopEntry {
 /// use std::error::Error;
 ///
 /// fn main() -> Result<(), Box<dyn Error>> {
-///     let desktop_entry_contents = "[Desktop Entry]\nType=Application\nExec=Bar\nName=Foo";
+///     let desktop_entry_contents = "[Desktop Entry]\n\
+///     Type=Application\n\
+///     Exec=Bar\n\
+///     Name=Foo\n\
+///     Terminal=true";
 ///     let d_entry = DesktopFile::from_str(desktop_entry_contents)?;
 ///     d_entry.to_file("foo.desktop")?;
 ///
@@ -583,7 +589,12 @@ impl DesktopFile {
     /// ```
     /// use xdg::desktop_entry::DesktopFile;
     ///
-    /// let desktop_entry = "[Desktop Entry]\nType=Application\nName=Foo\nExec=Bar";
+    /// let desktop_entry = "
+    ///     [Desktop Entry]
+    ///     Type=Application
+    ///     Name=Foo
+    ///     Exec=Bar
+    /// ";
     /// let loaded_entry = DesktopFile::from_str(desktop_entry).unwrap();
     /// assert_eq!(loaded_entry.get_name().unwrap(), "Foo".to_string());
     /// ```
@@ -713,10 +724,7 @@ impl fmt::Display for DesktopEntry {
         let mut string = format!("[{}]", self.entry_type);
         let mut append_string = |opt: &Option<String>, key: &str| {
             if let Some(s) = opt {
-                string += "\n";
-                string += key;
-                string += "=";
-                string += &s;
+                string += &format!("\n{}={}", key, &s);
             };
         };
         append_string(&self.type_string, "Type");
@@ -751,12 +759,10 @@ impl fmt::Display for DesktopEntry {
 
         let mut append_bool = |opt: &Option<bool>, key: &str| {
             if let Some(s) = opt {
-                string += "\n";
-                string += key;
-                string += "=";
-                string += &s.to_string();
+                string += &format!("\n{}={}", key, &s);
             };
         };
+        append_bool(&self.terminal, "Terminal");
         append_bool(&self.no_display, "NoDisplay");
         append_bool(&self.hidden, "Hidden");
         append_bool(&self.dbus_activatable, "DBusActivatable");
@@ -767,11 +773,7 @@ impl fmt::Display for DesktopEntry {
         let mut append_strings = |opt: &Option<Strings>, key: &str| {
             if let Some(s) = opt {
                 let values = s.join(";");
-                string += "\n";
-                string += key;
-                string += "=";
-                string += &values;
-                string += ";";
+                string += &format!("\n{}={};", key, values)
             };
         };
 
@@ -810,7 +812,7 @@ impl Parse<bool> for Option<&String> {
     fn parse(&self) -> Result<Option<bool>> {
         if let Some(s) = self {
             use std::str::FromStr;
-            let err = Error::from(format!("{} is not a boolean",s));
+            let err = Error::from(format!("{} is not a valid boolean",s));
             FromStr::from_str(s).map_err(|_| err).map(|x| Some(x))
         } else {
             Ok(None)

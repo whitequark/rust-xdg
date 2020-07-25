@@ -2,3 +2,4 @@
 Type=Application
 Exec=Bar
 Name=Foo
+Terminal=true
