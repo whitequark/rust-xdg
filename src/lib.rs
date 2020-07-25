@@ -2,7 +2,7 @@
 
 pub mod desktop_entry;
 
-pub use crate::desktop_entry::{DesktopFile,DesktopEntry};
+pub use crate::desktop_entry::{DesktopEntry, Group};
 
 use std::fmt;
 use std::convert;

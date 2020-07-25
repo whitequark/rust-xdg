@@ -14,7 +14,7 @@ pub enum LocaleLang {
 ///
 /// # Example
 /// ```
-/// use xdg::desktop_entry::DesktopFile;
+/// use xdg::desktop_entry::DesktopEntry;
 /// use std::str::FromStr;
 ///
 /// let desktop_entry = "
@@ -28,7 +28,7 @@ pub enum LocaleLang {
 ///     Keywords[es]=c;d;
 /// ";
 ///
-/// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
+/// let desktop_entry_file = DesktopEntry::from_str(desktop_entry).unwrap();
 /// let name = desktop_entry_file.get_name().unwrap();
 /// assert_eq!(name, "Foo".to_string());
 /// let default_group = desktop_entry_file.get_default_group().unwrap();

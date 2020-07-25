@@ -11,15 +11,9 @@ impl fmt::Display for Error {
     }
 }
 
-impl From<&str> for Error {
-    fn from(error: &str) -> Self {
-        Error::from(error.to_string())
-    }
-}
-
-impl From<String> for Error {
-    fn from(error: String) -> Self {
-        Error(vec![error])
+impl<T: AsRef<str>> From<T> for Error {
+    fn from(error: T) -> Self {
+        Error(vec![error.as_ref().to_string()])
     }
 }
 

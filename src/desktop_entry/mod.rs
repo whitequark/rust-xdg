@@ -31,9 +31,9 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 /// To load a desktop file `foo.desktop`:
 ///
 /// ```
-/// use xdg::desktop_entry::DesktopFile;
+/// use xdg::desktop_entry::DesktopEntry;
 ///
-/// let desktop_file = DesktopFile::from_file("test_files/desktop_entries/test.desktop").unwrap();
+/// let desktop_file = DesktopEntry::from_file("test_files/desktop_entries/test.desktop").unwrap();
 /// let name = desktop_file.get_name().ok();
 ///
 /// assert_eq!(name, Some("Foo".to_string()));
@@ -42,7 +42,7 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 /// To validate the desktop file:
 ///
 /// ```
-/// use xdg::desktop_entry::DesktopFile;
+/// use xdg::desktop_entry::DesktopEntry;
 /// use std::str::FromStr;
 ///
 /// let desktop_entry = "
@@ -52,7 +52,7 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 ///     Exec=Bar
 /// ";
 ///
-/// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
+/// let desktop_entry_file = DesktopEntry::from_str(desktop_entry).unwrap();
 /// let result = desktop_entry_file.validate();
 /// assert_eq!(result.is_ok(), true);
 /// ```
@@ -61,9 +61,9 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 ///
 /// [xdg-desktop-file]: https://specifications.freedesktop.org/desktop-entry-spec/latest/
 ///
-pub struct DesktopFile {
+pub struct DesktopEntry {
     pub filename: String,
-    pub groups: Vec<DesktopEntry>,
+    pub groups: Vec<Group>,
 }
 
 /// Individual group header for a desktop file.
@@ -74,8 +74,8 @@ pub struct DesktopFile {
 /// [xdg-keys]: https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html
 ///
 #[derive(Clone)]
-pub struct DesktopEntry {
-    pub entry_type: String,
+pub struct Group {
+    pub group_name: String,
     pub type_string: Option<String>, // type is a reserver keyword
     pub version: Option<String>,
     pub name: Option<LocaleString>, // Required
@@ -104,14 +104,14 @@ pub struct DesktopEntry {
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl DesktopEntry {
+impl Group {
     pub fn get_name(&self) -> Result<String> {
         let name = &self.name.clone().ok_or_else(|| Error::from("Could not get name"))?;
         name.get_default()
     }
 
     pub fn get_header(&self) -> Result<String> {
-        Ok(self.entry_type.clone())
+        Ok(self.group_name.clone())
     }
 
     pub fn get_type(&self) -> Result<String> {
@@ -129,7 +129,7 @@ impl DesktopEntry {
         self.url.clone().ok_or(err)
     }
 
-    fn from_hash_map(entry_type: String, hashmap: &HashMap<String, String>) -> Result<Self> {
+    fn from_hash_map(group_name: String, hashmap: &HashMap<String, String>) -> Result<Self> {
         // String type
         let type_string = hashmap.get("Type").cloned();
         let version = hashmap.get("Version").cloned();
@@ -161,8 +161,8 @@ impl DesktopEntry {
         let categories = hashmap.get("Categories").parse()?;
         let implements = hashmap.get("Implements").parse()?;
 
-        let desktop_entry = DesktopEntry {
-            entry_type,
+        let desktop_entry = Group {
+            group_name,
             type_string,
             version,
             name,
@@ -246,7 +246,7 @@ impl DesktopEntry {
     fn check_group(&self) -> Result<()> {
         let re = Regex::new(r"^Desktop Action [a-zA-Z0-9-]+$")
             .map_err(|_| Error::from("Could not parse regex"))?;
-        let group: &str = &self.entry_type;
+        let group: &str = &self.group_name;
         let mut err: Vec<String> = vec![];
         if !(group == DEFAULT_GROUP
             || re.is_match(group)
@@ -429,12 +429,12 @@ impl DesktopEntry {
 
     fn is_default_grop(&self) -> bool {
         // TODO verify there are no more cases
-        let group: &str = &self.entry_type;
+        let group: &str = &self.group_name;
         group == DEFAULT_GROUP
     }
 
     fn check_extras(&self) -> Result<()> {
-        let group = &self.entry_type;
+        let group = &self.group_name;
         let mut err: Strings = vec![];
 
         if group == "KDE Desktop Entry" {
@@ -505,10 +505,10 @@ impl DesktopEntry {
     }
 }
 
-/// Writes the contents of a `DesktopFile` to a file `filename`.
+/// Writes the contents of a `DesktopEntry` to a file `filename`.
 ///
 /// ```
-/// use xdg::desktop_entry::DesktopFile;
+/// use xdg::desktop_entry::DesktopEntry;
 /// use std::fs::File;
 /// use std::io::prelude::*;
 /// use std::error::Error;
@@ -520,7 +520,7 @@ impl DesktopEntry {
 ///     Exec=Bar\n\
 ///     Name=Foo\n\
 ///     Terminal=true";
-///     let d_entry = DesktopFile::from_str(desktop_entry_contents)?;
+///     let d_entry = DesktopEntry::from_str(desktop_entry_contents)?;
 ///     d_entry.to_file("foo.desktop")?;
 ///
 ///     let mut file = File::open("foo.desktop")?;
@@ -532,7 +532,7 @@ impl DesktopEntry {
 ///     Ok(())
 /// }
 /// ```
-impl DesktopFile {
+impl DesktopEntry {
     pub fn to_file(&self, filename: &str) -> Result<()> {
         use std::fs::File;
         use std::io::prelude::*;
@@ -583,7 +583,7 @@ impl DesktopFile {
     fn from_hash_map(hash: &[(String, HashMap<String, String>)], filename: &str) -> Result<Self> {
         let mut groups = vec![];
         for (entry_name, entry) in hash.iter() {
-            groups.push(DesktopEntry::from_hash_map(entry_name.into(), &entry)?);
+            groups.push(Group::from_hash_map(entry_name.into(), &entry)?);
         }
         let desktop_file = Self {
             filename: filename.into(),
@@ -594,7 +594,7 @@ impl DesktopFile {
         Ok(desktop_file)
     }
 
-    /// Load a `DesktopFile` from a file `filename`.
+    /// Load a `DesktopEntry` from a file `filename`.
     pub fn from_file(filename: &str) -> Result<Self> {
         let hash = Self::load_ini(filename)?;
         Self::from_hash_map(&hash, filename)
@@ -641,7 +641,7 @@ impl DesktopFile {
     /// # Example
     ///
     /// ```
-    /// use xdg::desktop_entry::DesktopFile;
+    /// use xdg::desktop_entry::DesktopEntry;
     /// use std::str::FromStr;
     ///
     /// let desktop_entry = "
@@ -655,15 +655,15 @@ impl DesktopFile {
     ///     Name=Foo Bar
     /// ";
     ///
-    /// let desktop_entry_file = DesktopFile::from_str(desktop_entry).unwrap();
+    /// let desktop_entry_file = DesktopEntry::from_str(desktop_entry).unwrap();
     /// let name = desktop_entry_file.get_name().unwrap();
     /// assert_eq!(name, "Foo");
     /// let second_group = desktop_entry_file.groups[1].clone();
     /// assert_eq!(second_group.get_name().unwrap(), "Foo Bar");
-    /// assert_eq!(second_group.entry_type, "Desktop Action Bar");
+    /// assert_eq!(second_group.group_name, "Desktop Action Bar");
     /// ```
     ///
-    pub fn get_default_group(&self) -> Result<DesktopEntry> {
+    pub fn get_default_group(&self) -> Result<Group> {
         // TODO Improve this function
         Ok(self.groups[0].clone())
     }
@@ -677,7 +677,7 @@ impl DesktopFile {
     }
 }
 
-impl fmt::Display for DesktopFile {
+impl fmt::Display for DesktopEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut string = String::new();
         for group in &self.groups {
@@ -689,9 +689,9 @@ impl fmt::Display for DesktopFile {
     }
 }
 
-impl fmt::Display for DesktopEntry {
+impl fmt::Display for Group {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut string = format!("[{}]", self.entry_type);
+        let mut string = format!("[{}]", self.group_name);
         let mut append_string = |opt: &Option<String>, key: &str| {
             if let Some(s) = opt {
                 string += &format!("\n{}={}", key, &s);
@@ -818,7 +818,7 @@ impl Parse<Strings> for Option<&String> {
 /// # Example
 ///
 /// ```
-/// use xdg::desktop_entry::DesktopFile;
+/// use xdg::desktop_entry::DesktopEntry;
 /// use std::str::FromStr;
 ///
 /// let desktop_entry = "
@@ -827,10 +827,10 @@ impl Parse<Strings> for Option<&String> {
 ///     Name=Foo
 ///     Exec=Bar
 /// ";
-/// let loaded_entry = DesktopFile::from_str(desktop_entry).unwrap();
+/// let loaded_entry = DesktopEntry::from_str(desktop_entry).unwrap();
 /// assert_eq!(loaded_entry.get_name().unwrap(), "Foo".to_string());
 /// ```
-impl std::str::FromStr for DesktopFile {
+impl std::str::FromStr for DesktopEntry {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         let i = Ini::load_from_str(s)
