@@ -64,6 +64,7 @@ const DEFAULT_GROUP: &str = "Desktop Entry";
 ///
 /// [xdg-desktop-file]: https://specifications.freedesktop.org/desktop-entry-spec/latest/
 ///
+#[derive(Clone)]
 pub struct DesktopEntry {
     pub filename: String,
     pub groups: Vec<Group>,
@@ -76,7 +77,7 @@ pub struct DesktopEntry {
 ///
 /// [xdg-keys]: https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s06.html
 ///
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Group {
     pub group_name: String,
     pub type_string: Option<String>, // type is a reserver keyword
@@ -423,11 +424,11 @@ impl Group {
                     && !main.contains(&x.as_str())
                     && !additional.contains(&x.as_str())
             });
-            let x: Vec<String> = invalid_categories
+            let err: Vec<String> = invalid_categories
                 .map(|x| format!("{} is not a registered Category", x))
                 .collect();
-            if !x.is_empty() {
-                return Err(Error(x));
+            if !err.is_empty() {
+                return Err(Error(err));
             }
         }
         Ok(())
@@ -435,7 +436,7 @@ impl Group {
 
     fn is_default_grop(&self) -> bool {
         // TODO verify there are no more cases
-        let group: &str = &self.group_name;
+        let group = &self.group_name;
         group == DEFAULT_GROUP
     }
 
@@ -500,6 +501,7 @@ impl Group {
 
     /// Validates the group, the error `Err(error)` contains the warnings.
     pub fn validate(&self) -> Result<()> {
+        // TODO show all warnings
         self.check_keys()?;
         self.check_group()?;
         self.check_extras()?;
@@ -622,15 +624,14 @@ impl DesktopEntry {
         let hash = Self::load_ini(&filename)?;
         Self::from_hash_map(
             &hash,
-            filename.as_ref().to_str().ok_or(Error::from(format!(
-                "Could not convert {}",
-                filename.as_ref().display()
-            )))?,
+            filename.as_ref().to_str().ok_or_else(|| {
+                Error::from(format!("Could not convert {}", filename.as_ref().display()))
+            })?,
         )
     }
 
     fn check_extension(&self) -> Result<()> {
-        let mut err = String::new();
+        let mut err = Error(vec![]);
         let extension = Path::new(&self.filename)
             .extension()
             .and_then(OsStr::to_str)
@@ -641,27 +642,34 @@ impl DesktopEntry {
                 ))
             })?;
         match extension {
-            ".desktop" => (),
-            ".directory" => (),
-            ".kdelnk" => {
-                err += "File extension .kdelnk is deprecated";
+            "desktop" => (),
+            "directory" => (),
+            "kdelnk" => {
+                err.push("File extension .kdelnk is deprecated");
             }
             _ => {
-                err += "Unknown File extension";
+                err.push("Unknown File extension");
             }
         };
 
         if let Some(etype) = &self.get_default_group()?.type_string {
             if extension == ".directory" && etype != "Directory" {
-                err += &format!("File extension is .directory, but Type is {}", etype);
+                err.push(format!(
+                    "File extension is .directory, but Type is {}",
+                    etype
+                ));
             } else if extension == ".desktop" && etype == "Directory" {
-                err += "Files with Type=Directory should have the extension .directory";
+                err.push("Files with Type=Directory should have the extension .directory");
             }
         } else {
             return Err(Error::from("key 'Type' is missing"));
         }
 
-        Ok(())
+        if err.is_empty() {
+            Ok(())
+        } else {
+            Err(err)
+        }
     }
 
     /// Get the group with header "Desktop Entry".

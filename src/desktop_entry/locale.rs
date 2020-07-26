@@ -81,10 +81,7 @@ impl TryFrom<Locales> for Locale {
 
 impl LocaleLang {
     pub fn is_default(&self) -> bool {
-        match &self {
-            Self::Default => true,
-            _ => false,
-        }
+        matches!(&self, Self::Default)
     }
 }
 
