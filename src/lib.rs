@@ -1,6 +1,8 @@
 #![cfg(any(unix, target_os = "redox"))]
 
-extern crate dirs;
+pub mod desktop_entry;
+
+pub use crate::desktop_entry::{DesktopEntry, Group};
 
 use std::fmt;
 use std::convert;
@@ -46,10 +48,19 @@ use BaseDirectoriesError as Error;
 /// To store configuration:
 ///
 /// ```
-/// let config_path = xdg_dirs.place_config_file("config.ini")
-///                           .expect("cannot create configuration directory");
-/// let mut config_file = File::create(config_path)?;
-/// write!(&mut config_file, "configured = 1")?;
+/// use std::error::Error;
+/// use std::fs::File;
+/// use std::io::prelude::*;
+/// use xdg::BaseDirectories;
+///
+/// fn main() -> Result<(), Box<dyn Error>> {
+///     let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp").unwrap();
+///     let config_path = xdg_dirs.place_config_file("config.ini")
+///                             .expect("cannot create configuration directory");
+///     let mut config_file = File::create(config_path)?;
+///     write!(&mut config_file, "configured = 1")?;
+///     Ok(())
+/// }
 /// ```
 ///
 /// The `config.ini` file will appear in the proper location for desktop
@@ -58,12 +69,21 @@ use BaseDirectoriesError as Error;
 ///
 /// To retrieve supplementary data:
 ///
-/// ```
-/// let logo_path = xdg_dirs.find_data_file("logo.png")
-///                         .expect("application data not present");
-/// let mut logo_file = File::open(logo_path)?;
-/// let mut logo = Vec::new();
-/// logo_file.read_to_end(&mut logo)?;
+/// ```no_run
+/// use std::error::Error;
+/// use std::fs::File;
+/// use std::io::prelude::*;
+/// use xdg::BaseDirectories;
+///
+/// fn main() -> Result<(), Box<dyn Error>> {
+///     let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp").unwrap();
+///     let logo_path = xdg_dirs.find_data_file("logo.png")
+///                             .expect("application data not present");
+///     let mut logo_file = File::open(logo_path)?;
+///     let mut logo = Vec::new();
+///     logo_file.read_to_end(&mut logo)?;
+///     Ok(())
+/// }
 /// ```
 ///
 /// The `logo.png` will be searched in the proper locations for
@@ -88,7 +108,7 @@ pub struct BaseDirectoriesError {
 impl BaseDirectoriesError {
     fn new(kind: BaseDirectoriesErrorKind) -> BaseDirectoriesError {
         BaseDirectoriesError {
-            kind: kind,
+            kind,
         }
     }
 }
@@ -122,7 +142,7 @@ impl error::Error for BaseDirectoriesError {
 impl fmt::Display for BaseDirectoriesError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
-            HomeMissing => write!(f, "{}", error::Error::description(self)),
+            HomeMissing => write!(f, "{}", self.to_string()),
             XdgRuntimeDirInaccessible(ref dir, ref error) => {
                 write!(f, "$XDG_RUNTIME_DIR (`{}`) must be accessible \
                            by the current user (error: {})", dir.display(), error)
@@ -211,6 +231,8 @@ impl BaseDirectories {
     /// For example:
     ///
     /// ```rust
+    /// use xdg::BaseDirectories;
+    ///
     /// let dirs = BaseDirectories::with_profile("program-name", "profile-name")
     ///                            .unwrap();
     /// dirs.find_data_file("bar.jpg");
@@ -255,24 +277,24 @@ impl BaseDirectories {
             }
         }
 
-        let home = dirs::home_dir().ok_or(Error::new(HomeMissing))?;
+        let home = dirs::home_dir().ok_or_else(|| Error::new(HomeMissing))?;
 
         let data_home   = env_var("XDG_DATA_HOME")
                               .and_then(abspath)
-                              .unwrap_or(home.join(".local/share"));
+                              .unwrap_or_else(|| home.join(".local/share"));
         let config_home = env_var("XDG_CONFIG_HOME")
                               .and_then(abspath)
-                              .unwrap_or(home.join(".config"));
+                              .unwrap_or_else(|| home.join(".config"));
         let cache_home  = env_var("XDG_CACHE_HOME")
                               .and_then(abspath)
-                              .unwrap_or(home.join(".cache"));
+                              .unwrap_or_else(|| home.join(".cache"));
         let data_dirs   = env_var("XDG_DATA_DIRS")
                               .and_then(abspaths)
-                              .unwrap_or(vec![PathBuf::from("/usr/local/share"),
+                              .unwrap_or_else(|| vec![PathBuf::from("/usr/local/share"),
                                               PathBuf::from("/usr/share")]);
         let config_dirs = env_var("XDG_CONFIG_DIRS")
                               .and_then(abspaths)
-                              .unwrap_or(vec![PathBuf::from("/etc/xdg")]);
+                              .unwrap_or_else(|| vec![PathBuf::from("/etc/xdg")]);
         let runtime_dir = env_var("XDG_RUNTIME_DIR")
                               .and_then(abspath); // optional
 
@@ -280,12 +302,12 @@ impl BaseDirectories {
         Ok(BaseDirectories {
             user_prefix: prefix.join(profile),
             shared_prefix: prefix,
-            data_home: data_home,
-            config_home: config_home,
-            cache_home: cache_home,
-            data_dirs: data_dirs,
-            config_dirs: config_dirs,
-            runtime_dir: runtime_dir,
+            data_home,
+            config_home,
+            cache_home,
+            data_dirs,
+            config_dirs,
+            runtime_dir,
         })
     }
 
@@ -565,7 +587,7 @@ fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         Some(parent) => fs::create_dir_all(home.join(parent))?,
         None => fs::create_dir_all(home)?,
     }
-    Ok(PathBuf::from(home.join(path.as_ref())))
+    Ok(home.join(path.as_ref()))
 }
 
 fn create_directory<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
@@ -590,7 +612,7 @@ fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
     inner(path.as_ref())
 }
 
-fn read_file(home: &PathBuf, dirs: &Vec<PathBuf>,
+fn read_file(home: &PathBuf, dirs: &[PathBuf],
              user_prefix: &Path, shared_prefix: &Path, path: &Path)
              -> Option<PathBuf> {
     let full_path = home.join(user_prefix).join(path);
@@ -614,7 +636,7 @@ pub struct FileFindIterator {
 }
 
 impl FileFindIterator {
-    fn new(home: &PathBuf, dirs: &Vec<PathBuf>,
+    fn new(home: &PathBuf, dirs: &[PathBuf],
            user_prefix: &Path, shared_prefix: &Path, path: &Path)
            -> FileFindIterator {
        let mut search_dirs = Vec::new();
@@ -623,7 +645,7 @@ impl FileFindIterator {
        }
        search_dirs.push(home.join(user_prefix));
        FileFindIterator {
-           search_dirs: search_dirs,
+           search_dirs,
            position: 0,
            relpath: path.to_path_buf(),
        }
@@ -878,6 +900,7 @@ fn test_lists() {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn test_get_file() {
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env("", "", &*make_env(vec![
