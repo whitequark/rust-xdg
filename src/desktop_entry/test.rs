@@ -5,7 +5,7 @@ fn parse_desktop_file() {
     let filename = "test_files/desktop_entries/test-multiple.desktop";
     let desktop_file = DesktopEntry::from_file(filename).unwrap();
     let groups = desktop_file.groups;
-    assert_eq!(desktop_file.filename, filename);
+    assert_eq!(desktop_file.filename, "test-multiple.desktop");
     assert_eq!(groups.len(), 2);
 }
 

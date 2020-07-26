@@ -12,6 +12,9 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 
+use std::ffi::OsStr;
+use std::path::Path;
+
 mod error;
 pub mod locale;
 
@@ -536,12 +539,15 @@ impl Group {
 /// }
 /// ```
 impl DesktopEntry {
-    pub fn to_file(&self, filename: &str) -> Result<()> {
+    pub fn to_file(&self, filename: impl AsRef<Path>) -> Result<()> {
         use std::fs::File;
         use std::io::prelude::*;
 
-        let mut file = File::create(filename)
-            .map_err(|_| Error::from(format!("Could not create file {}", filename)))?;
+        let err = Error::from(format!(
+            "Could not create file {}",
+            filename.as_ref().display()
+        ));
+        let mut file = File::create(filename).map_err(|_| err)?;
         if file.write_all(self.to_string().as_bytes()).is_ok() {
             Ok(())
         } else {
@@ -565,9 +571,9 @@ impl DesktopEntry {
         self.get_default_group()?.get_url()
     }
 
-    fn load_ini(ini: &str) -> Result<Vec<(String, HashMap<String, String>)>> {
-        let i = Ini::load_from_file(ini)
-            .map_err(|_| Error::from(format!("Could not load ini {}", ini)))?;
+    fn load_ini(ini: impl AsRef<Path>) -> Result<Vec<(String, HashMap<String, String>)>> {
+        let err = Error::from(format!("Could not load ini {}", ini.as_ref().display()));
+        let i = Ini::load_from_file(ini).map_err(|_| err)?;
         let mut result = vec![];
         for (sec, prop) in i.iter() {
             let mut s = HashMap::new();
@@ -583,13 +589,27 @@ impl DesktopEntry {
         Ok(result)
     }
 
-    fn from_hash_map(hash: &[(String, HashMap<String, String>)], filename: &str) -> Result<Self> {
+    fn from_hash_map(
+        hash: &[(String, HashMap<String, String>)],
+        filename: impl AsRef<Path>,
+    ) -> Result<Self> {
         let mut groups = vec![];
         for (entry_name, entry) in hash.iter() {
             groups.push(Group::from_hash_map(entry_name.into(), &entry)?);
         }
+        let name = filename
+            .as_ref()
+            .file_name()
+            .and_then(OsStr::to_str)
+            .ok_or_else(|| {
+                Error::from(format!(
+                    "Could not convert file_name of {} to String",
+                    filename.as_ref().display()
+                ))
+            })?
+            .to_string();
         let desktop_file = Self {
-            filename: filename.into(),
+            filename: name,
             groups,
         };
         desktop_file.check_extension()?;
@@ -598,15 +618,18 @@ impl DesktopEntry {
     }
 
     /// Load a `DesktopEntry` from a file `filename`.
-    pub fn from_file(filename: &str) -> Result<Self> {
-        let hash = Self::load_ini(filename)?;
-        Self::from_hash_map(&hash, filename)
+    pub fn from_file(filename: impl AsRef<Path>) -> Result<Self> {
+        let hash = Self::load_ini(&filename)?;
+        Self::from_hash_map(
+            &hash,
+            filename.as_ref().to_str().ok_or(Error::from(format!(
+                "Could not convert {}",
+                filename.as_ref().display()
+            )))?,
+        )
     }
 
     fn check_extension(&self) -> Result<()> {
-        use std::ffi::OsStr;
-        use std::path::Path;
-
         let mut err = String::new();
         let extension = Path::new(&self.filename)
             .extension()
