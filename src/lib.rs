@@ -21,7 +21,7 @@ use BaseDirectoriesError as Error;
 /// the [X Desktop Group Base Directory specification][xdg-basedir].
 /// [xdg-basedir]: http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 ///
-/// The Base Directory specification defines four kinds of files:
+/// The Base Directory specification defines five kinds of files:
 ///
 ///   * **Configuration files** store the application's settings and
 ///     are often modified during runtime;
@@ -30,6 +30,8 @@ use BaseDirectoriesError as Error;
 ///     source code;
 ///   * **Cache files** store non-essential, transient data that provides
 ///     a runtime speedup;
+///   * **State files** store logs, history, recently used files and application
+///     state (window size, open files, unsaved changes, …);
 ///   * **Runtime files** include filesystem objects such are sockets or
 ///     named pipes that are used for communication internal to the application.
 ///     Runtime files must not be accessible to anyone except current user.
@@ -76,6 +78,7 @@ pub struct BaseDirectories {
     data_home: PathBuf,
     config_home: PathBuf,
     cache_home: PathBuf,
+    state_home: PathBuf,
     data_dirs: Vec<PathBuf>,
     config_dirs: Vec<PathBuf>,
     runtime_dir: Option<PathBuf>,
@@ -183,6 +186,7 @@ impl BaseDirectories {
     ///   * `XDG_DATA_HOME`; if not set: assumed to be `$HOME/.local/share`.
     ///   * `XDG_CONFIG_HOME`; if not set: assumed to be `$HOME/.config`.
     ///   * `XDG_CACHE_HOME`; if not set: assumed to be `$HOME/.cache`.
+    ///   * `XDG_STATE_HOME`; if not set: assumed to be `$HOME/.local/state`.
     ///   * `XDG_DATA_DIRS`; if not set: assumed to be `/usr/local/share:/usr/share`.
     ///   * `XDG_CONFIG_DIRS`; if not set: assumed to be `/etc/xdg`.
     ///   * `XDG_RUNTIME_DIR`; if not accessible or permissions are not `0700`:
@@ -266,6 +270,9 @@ impl BaseDirectories {
         let cache_home  = env_var("XDG_CACHE_HOME")
                               .and_then(abspath)
                               .unwrap_or(home.join(".cache"));
+        let state_home  = env_var("XDG_STATE_HOME")
+                              .and_then(abspath)
+                              .unwrap_or(home.join(".local/state"));
         let data_dirs   = env_var("XDG_DATA_DIRS")
                               .and_then(abspaths)
                               .unwrap_or(vec![PathBuf::from("/usr/local/share"),
@@ -280,12 +287,13 @@ impl BaseDirectories {
         Ok(BaseDirectories {
             user_prefix: prefix.join(profile),
             shared_prefix: prefix,
-            data_home: data_home,
-            config_home: config_home,
-            cache_home: cache_home,
-            data_dirs: data_dirs,
-            config_dirs: config_dirs,
-            runtime_dir: runtime_dir,
+            data_home,
+            config_home,
+            cache_home,
+            state_home,
+            data_dirs,
+            config_dirs,
+            runtime_dir,
         })
     }
 
@@ -339,6 +347,13 @@ impl BaseDirectories {
         self.cache_home.join(self.user_prefix.join(path))
     }
 
+    /// Like [`place_state_file()`](#method.place_state_file), but does
+    /// not create any directories.
+    pub fn get_state_file<P>(&self, path: P) -> PathBuf
+            where P: AsRef<Path> {
+        self.state_home.join(self.user_prefix.join(path))
+    }
+
     /// Like [`place_runtime_file()`](#method.place_runtime_file), but does
     /// not create any directories.
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
@@ -369,6 +384,13 @@ impl BaseDirectories {
     pub fn place_cache_file<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         write_file(&self.cache_home, self.user_prefix.join(path))
+    }
+
+    /// Like [`place_config_file()`](#method.place_config_file), but for
+    /// an application state file in `XDG_STATE_HOME`.
+    pub fn place_state_file<P>(&self, path: P) -> io::Result<PathBuf>
+            where P: AsRef<Path> {
+        write_file(&self.state_home, self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
@@ -426,6 +448,14 @@ impl BaseDirectories {
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
+    /// application state file, or `None`. Searches `XDG_STATE_HOME`.
+    pub fn find_state_file<P>(&self, path: P) -> Option<PathBuf>
+            where P: AsRef<Path> {
+        read_file(&self.state_home, &Vec::new(),
+                  &self.user_prefix, &self.shared_prefix, path.as_ref())
+    }
+
+    /// Given a relative path `path`, returns an absolute path to an existing
     /// runtime file, or `None`. Searches `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns `None`.
     pub fn find_runtime_file<P>(&self, path: P) -> Option<PathBuf>
@@ -461,6 +491,14 @@ impl BaseDirectories {
     pub fn create_cache_directory<P>(&self, path: P) -> io::Result<PathBuf>
             where P: AsRef<Path> {
         create_directory(&self.cache_home,
+                         self.user_prefix.join(path))
+    }
+
+    /// Like [`create_config_directory()`](#method.create_config_directory),
+    /// but for an application state directory in `XDG_STATE_HOME`.
+    pub fn create_state_directory<P>(&self, path: P) -> io::Result<PathBuf>
+            where P: AsRef<Path> {
+        create_directory(&self.state_home,
                          self.user_prefix.join(path))
     }
 
@@ -516,6 +554,14 @@ impl BaseDirectories {
     }
 
     /// Given a relative path `path`, lists absolute paths to all files
+    /// in directories with path `path` in `XDG_STATE_HOME`.
+    pub fn list_state_files<P>(&self, path: P) -> Vec<PathBuf>
+            where P: AsRef<Path> {
+        list_files(&self.state_home, &Vec::new(),
+                   &self.user_prefix, &self.shared_prefix, path.as_ref())
+    }
+
+    /// Given a relative path `path`, lists absolute paths to all files
     /// in directories with path `path` in `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns an empty `Vec`.
     pub fn list_runtime_files<P>(&self, path: P) -> Vec<PathBuf>
@@ -543,6 +589,12 @@ impl BaseDirectories {
     /// (set by `XDG_CACHE_HOME`).
     pub fn get_cache_home(&self) -> PathBuf {
         self.cache_home.join(&self.user_prefix)
+    }
+
+    /// Returns the user-specific directory for application state data
+    /// (set by `XDG_STATE_HOME`).
+    pub fn get_state_home(&self) -> PathBuf {
+        self.state_home.join(&self.user_prefix)
     }
 
     /// Returns a preference ordered (preferred to less preferred) list of
