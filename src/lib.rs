@@ -658,10 +658,9 @@ fn read_file(home: &PathBuf, dirs: &Vec<PathBuf>,
     None
 }
 
-use std::iter::Iterator;
+use std::vec::IntoIter as VecIter;
 pub struct FileFindIterator {
-    search_dirs: Vec<PathBuf>,
-    position: usize,
+    search_dirs: VecIter<PathBuf>,
     relpath: PathBuf,
 }
 
@@ -675,8 +674,7 @@ impl FileFindIterator {
        }
        search_dirs.push(home.join(user_prefix));
        FileFindIterator {
-           search_dirs: search_dirs,
-           position: 0,
+           search_dirs: search_dirs.into_iter(),
            relpath: path.to_path_buf(),
        }
    }
@@ -687,11 +685,19 @@ impl Iterator for FileFindIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let dir = match self.search_dirs.get(self.position) {
-                Some(d) => d,
-                None => return None
-            };
-            self.position += 1;
+            let dir = self.search_dirs.next()?;
+            let candidate = dir.join(self.relpath.clone());
+            if path_exists(&candidate) {
+                return Some(candidate)
+            }
+        }
+    }
+}
+
+impl DoubleEndedIterator for FileFindIterator {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        loop {
+            let dir = self.search_dirs.next_back()?;
             let candidate = dir.join(self.relpath.clone());
             if path_exists(&candidate) {
                 return Some(candidate)
