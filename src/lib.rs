@@ -1,6 +1,9 @@
-#![cfg(any(unix, target_os = "redox"))]
+#![cfg(any(unix, target_os = "redox", windows))]
 
 extern crate dirs;
+
+#[cfg(windows)]
+extern crate windows_permissions;
 
 use self::permissions::{GetPathPermsError, Permission, Permissions};
 use std::convert;

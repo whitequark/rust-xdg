@@ -8,6 +8,11 @@ mod unix_redox;
 #[cfg(any(unix, target_os = "redox"))]
 use self::unix_redox as impl_;
 
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+use self::windows as impl_;
+
 pub(crate) trait Permission
 where
     Self: fmt::Debug + fmt::Display + Sized,
