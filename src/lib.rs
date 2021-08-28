@@ -2,6 +2,7 @@
 
 extern crate dirs;
 
+use self::permissions::{GetPathPermsError, Permission, Permissions};
 use std::convert;
 use std::env;
 use std::error;
@@ -11,10 +12,10 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use std::os::unix::fs::PermissionsExt;
-
 use BaseDirectoriesError as Error;
 use BaseDirectoriesErrorKind::*;
+
+mod permissions;
 
 /// BaseDirectories allows to look up paths to configuration, data,
 /// cache and runtime files in well-known locations according to
@@ -107,6 +108,7 @@ impl error::Error for BaseDirectoriesError {
             XdgRuntimeDirInaccessible(_, _) => {
                 "$XDG_RUNTIME_DIR must be accessible by the current user"
             }
+            XdgRuntimeDirReadPermsFailed(_, _) => "failed to read $XDG_RUNTIME_DIR permissions",
             XdgRuntimeDirInsecure(_, _) => "$XDG_RUNTIME_DIR must be secure: have permissions 0700",
             XdgRuntimeDirMissing => "$XDG_RUNTIME_DIR is not set",
         }
@@ -132,7 +134,15 @@ impl fmt::Display for BaseDirectoriesError {
                     error
                 )
             }
-            XdgRuntimeDirInsecure(ref dir, permissions) => {
+            XdgRuntimeDirReadPermsFailed(ref dir, ref error) => {
+                write!(
+                    f,
+                    "failed to read $XDG_RUNTIME_DIR (`{}`) permissions (error: {})",
+                    dir.display(),
+                    error
+                )
+            }
+            XdgRuntimeDirInsecure(ref dir, ref permissions) => {
                 write!(
                     f,
                     "$XDG_RUNTIME_DIR (`{}`) must be secure: must have \
@@ -157,26 +167,11 @@ impl convert::From<BaseDirectoriesError> for io::Error {
     }
 }
 
-#[derive(Copy, Clone)]
-struct Permissions(u32);
-
-impl fmt::Debug for Permissions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let Permissions(p) = *self;
-        write!(f, "{:#05o}", p)
-    }
-}
-
-impl fmt::Display for Permissions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
 #[derive(Debug)]
 enum BaseDirectoriesErrorKind {
     HomeMissing,
     XdgRuntimeDirInaccessible(PathBuf, io::Error),
+    XdgRuntimeDirReadPermsFailed(PathBuf, GetPathPermsError),
     XdgRuntimeDirInsecure(PathBuf, Permissions),
     XdgRuntimeDirMissing,
 }
@@ -327,14 +322,13 @@ impl BaseDirectories {
             // do not allow recovery.
             fs::read_dir(runtime_dir)
                 .map_err(|e| Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e)))?;
-            let permissions = fs::metadata(runtime_dir)
-                .map_err(|e| Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e)))?
-                .permissions()
-                .mode() as u32;
-            if permissions & 0o077 != 0 {
+            let permissions = Permissions::from_path(runtime_dir)
+                .map_err(|e| Error::new(XdgRuntimeDirReadPermsFailed(runtime_dir.clone(), e)))?;
+            let is_secure = permissions.is_only_owner_full_control();
+            if !is_secure {
                 Err(Error::new(XdgRuntimeDirInsecure(
                     runtime_dir.clone(),
-                    Permissions(permissions),
+                    permissions,
                 )))
             } else {
                 Ok(&runtime_dir)
@@ -981,14 +975,9 @@ fn make_env(vars: Vec<(&'static str, String)>) -> Box<dyn Fn(&str) -> Option<OsS
 #[test]
 fn test_files_exists() {
     assert!(path_exists("test_files"));
-    assert!(
-        fs::metadata("test_files/runtime-bad")
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o077
-            != 0
-    );
+    assert!(!Permissions::from_path("test_files/runtime-bad".as_ref())
+        .unwrap()
+        .is_only_owner_full_control());
 }
 
 #[test]
@@ -1100,9 +1089,9 @@ fn test_runtime_good() {
     let _ = fs::remove_dir_all(&test_runtime_dir);
     fs::create_dir_all(&test_runtime_dir).unwrap();
 
-    let mut perms = fs::metadata(&test_runtime_dir).unwrap().permissions();
-    perms.set_mode(0o700);
-    fs::set_permissions(&test_runtime_dir, perms).unwrap();
+    let mut perms = Permissions::from_path(&test_runtime_dir).unwrap();
+    perms.set_only_owner_full_control();
+    perms.apply_path(&test_runtime_dir).unwrap();
 
     let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
     let xd = BaseDirectories::with_env(
@@ -1226,10 +1215,13 @@ fn test_get_file() {
     .unwrap();
 
     let path = format!("{}/test_files/user/runtime/", cwd);
-    let metadata = fs::metadata(&path).expect("Could not read metadata for runtime directory");
-    let mut perms = metadata.permissions();
-    perms.set_mode(0o700);
-    fs::set_permissions(&path, perms).expect("Could not set permissions for runtime directory");
+    let path = path.as_ref();
+    let mut perms =
+        Permissions::from_path(path).expect("Could not read metadata for runtime directory");
+    perms.set_only_owner_full_control();
+    perms
+        .apply_path(path)
+        .expect("Could not set permissions for runtime directory");
 
     let file = xd.get_config_file("myapp/user_config.file");
     assert_eq!(
