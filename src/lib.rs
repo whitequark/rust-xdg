@@ -297,7 +297,8 @@ impl BaseDirectories {
         })
     }
 
-    fn get_runtime_directory(&self) -> Result<&PathBuf, BaseDirectoriesError> {
+    /// Returns the user-specific runtime directory (set by `XDG_RUNTIME_DIR`).
+    pub fn get_runtime_directory(&self) -> Result<&PathBuf, BaseDirectoriesError> {
         if let Some(ref runtime_dir) = self.runtime_dir {
             // If XDG_RUNTIME_DIR is in the environment but not secure,
             // do not allow recovery.
