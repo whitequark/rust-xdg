@@ -17,4 +17,4 @@ authors = [
 doctest = false
 
 [dependencies]
-dirs = "1.0"
+dirs = "3.0"
