@@ -951,7 +951,7 @@ fn test_get_file() {
     let metadata = fs::metadata(&path).expect("Could not read metadata for runtime directory");
     let mut perms = metadata.permissions();
     perms.set_mode(0o700);
-    fs::set_permissions(&path, perms);
+    fs::set_permissions(&path, perms).expect("Could not set permissions for runtime directory");
 
     let file = xd.get_config_file("myapp/user_config.file");
     assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/config/myapp/user_config.file", cwd)));
