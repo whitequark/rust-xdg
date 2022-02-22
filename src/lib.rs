@@ -946,7 +946,7 @@ fn test_get_file() {
             ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
             ("XDG_RUNTIME_DIR", format!("{}/test_files/user/runtime", cwd)),
         ])).unwrap();
-    
+
     let path = format!("{}/test_files/user/runtime/", cwd);
     let metadata = fs::metadata(&path).expect("Could not read metadata for runtime directory");
     let mut perms = metadata.permissions();
