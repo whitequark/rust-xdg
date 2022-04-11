@@ -125,7 +125,7 @@ impl error::Error for BaseDirectoriesError {
 impl fmt::Display for BaseDirectoriesError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
-            HomeMissing => write!(f, "{}", self.to_string()),
+            HomeMissing => write!(f, "$HOME must be set"),
             XdgRuntimeDirInaccessible(ref dir, ref error) => {
                 write!(f, "$XDG_RUNTIME_DIR (`{}`) must be accessible \
                            by the current user (error: {})", dir.display(), error)
