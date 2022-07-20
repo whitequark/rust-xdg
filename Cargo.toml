@@ -18,3 +18,4 @@ doctest = false
 
 [dependencies]
 dirs = "4.0"
+dotenv-parser = "0.1"
