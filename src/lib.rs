@@ -741,6 +741,10 @@ fn list_files_once(home: &Path, dirs: &[PathBuf],
 mod test {
     use super::*;
 
+    fn get_test_dir() -> PathBuf {
+        env::current_dir().unwrap()
+    }
+
     fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
         fn inner(path: &Path) -> bool {
             fs::metadata(path).map(|m| m.is_dir()).unwrap_or(false)
@@ -749,7 +753,7 @@ mod test {
     }
 
     fn make_absolute<P>(path: P) -> PathBuf where P: AsRef<Path> {
-        env::current_dir().unwrap().join(path.as_ref())
+        get_test_dir().join(path.as_ref())
     }
 
     fn iter_after<A, I, J>(mut iter: I, mut prefix: J) -> Option<I> where
@@ -769,8 +773,8 @@ mod test {
         }
     }
 
-    fn make_relative<P>(path: P) -> PathBuf where P: AsRef<Path> {
-        iter_after(path.as_ref().components(), env::current_dir().unwrap().components())
+    fn make_relative<P>(path: P, reference: P) -> PathBuf where P: AsRef<Path> {
+        iter_after(path.as_ref().components(), reference.as_ref().components())
             .unwrap().as_path().to_owned()
     }
 
@@ -857,31 +861,30 @@ mod test {
         use std::fs::File;
 
         let test_runtime_dir = make_absolute(&"test_files/runtime-good");
-        let _ = fs::remove_dir_all(&test_runtime_dir);
         fs::create_dir_all(&test_runtime_dir).unwrap();
 
         let mut perms = fs::metadata(&test_runtime_dir).unwrap().permissions();
         perms.set_mode(0o700);
         fs::set_permissions(&test_runtime_dir, perms).unwrap();
 
-        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let test_dir = get_test_dir().to_string_lossy().into_owned();
         let xd = BaseDirectories::with_env("", "", &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
-                ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-good", cwd)),
+                ("HOME", format!("{}/test_files/user", test_dir)),
+                ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-good", test_dir)),
             ])).unwrap();
 
         xd.create_runtime_directory("foo").unwrap();
-        assert!(path_is_dir("test_files/runtime-good/foo"));
+        assert!(path_is_dir(&format!("{}/test_files/runtime-good/foo", test_dir)));
         let w = xd.place_runtime_file("bar/baz").unwrap();
-        assert!(path_is_dir("test_files/runtime-good/bar"));
-        assert!(!path_exists("test_files/runtime-good/bar/baz"));
+        assert!(path_is_dir(&format!("{}/test_files/runtime-good/bar", test_dir)));
+        assert!(!path_exists(&format!("{}/test_files/runtime-good/bar/baz", test_dir)));
         File::create(&w).unwrap();
-        assert!(path_exists("test_files/runtime-good/bar/baz"));
+        assert!(path_exists(&format!("{}/test_files/runtime-good/bar/baz", test_dir)));
         assert!(xd.find_runtime_file("bar/baz") == Some(w.clone()));
         File::open(&w).unwrap();
         fs::remove_file(&w).unwrap();
         let root = xd.list_runtime_files(".");
-        let mut root = root.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
+        let mut root = root.into_iter().map(|p| make_relative(&p, &get_test_dir())).collect::<Vec<_>>();
         root.sort();
         assert_eq!(root,
                    vec![PathBuf::from("test_files/runtime-good/bar"),
@@ -889,7 +892,7 @@ mod test {
         assert!(xd.list_runtime_files("bar").is_empty());
         assert!(xd.find_runtime_file("foo/qux").is_none());
         assert!(xd.find_runtime_file("qux/foo").is_none());
-        assert!(!path_exists("test_files/runtime-good/qux"));
+        assert!(!path_exists(&format!("{}/test_files/runtime-good/qux", test_dir)));
     }
 
     #[test]
@@ -905,7 +908,7 @@ mod test {
             ])).unwrap();
 
         let files = xd.list_config_files(".");
-        let mut files = files.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
+        let mut files = files.into_iter().map(|p| make_relative(&p, &env::current_dir().unwrap())).collect::<Vec<_>>();
         files.sort();
         assert_eq!(files,
             [
@@ -922,7 +925,7 @@ mod test {
             ].iter().map(PathBuf::from).collect::<Vec<_>>());
 
         let files = xd.list_config_files_once(".");
-        let mut files = files.into_iter().map(|p| make_relative(&p)).collect::<Vec<_>>();
+        let mut files = files.into_iter().map(|p| make_relative(&p, &env::current_dir().unwrap())).collect::<Vec<_>>();
         files.sort();
         assert_eq!(files,
             [
@@ -937,32 +940,33 @@ mod test {
 
     #[test]
     fn test_get_file() {
-        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let test_dir = get_test_dir().to_string_lossy().into_owned();
         let xd = BaseDirectories::with_env("", "", &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
-                ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
-                ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
-                ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
-                ("XDG_RUNTIME_DIR", format!("{}/test_files/user/runtime", cwd)),
+                ("HOME", format!("{}/test_files/user", test_dir)),
+                ("XDG_DATA_HOME", format!("{}/test_files/user/data", test_dir)),
+                ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", test_dir)),
+                ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", test_dir)),
+                ("XDG_RUNTIME_DIR", format!("{}/test_files/user/runtime", test_dir)),
             ])).unwrap();
 
-        let path = format!("{}/test_files/user/runtime/", cwd);
+        let path = format!("{}/test_files/user/runtime/", test_dir);
+        fs::create_dir_all(&path).unwrap();
         let metadata = fs::metadata(&path).expect("Could not read metadata for runtime directory");
         let mut perms = metadata.permissions();
         perms.set_mode(0o700);
         fs::set_permissions(&path, perms).expect("Could not set permissions for runtime directory");
 
         let file = xd.get_config_file("myapp/user_config.file");
-        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/config/myapp/user_config.file", cwd)));
+        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/config/myapp/user_config.file", test_dir)));
 
         let file = xd.get_data_file("user_data.file");
-        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/data/user_data.file", cwd)));
+        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/data/user_data.file", test_dir)));
 
         let file = xd.get_cache_file("user_cache.file");
-        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/cache/user_cache.file", cwd)));
+        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/cache/user_cache.file", test_dir)));
 
         let file = xd.get_runtime_file("user_runtime.file").unwrap();
-        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/runtime/user_runtime.file", cwd)));
+        assert_eq!(file, PathBuf::from(&format!("{}/test_files/user/runtime/user_runtime.file", test_dir)));
     }
 
     #[test]
