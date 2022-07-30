@@ -741,8 +741,17 @@ fn list_files_once(home: &Path, dirs: &[PathBuf],
 mod test {
     use super::*;
 
+    const TARGET_TMPDIR: Option<&'static str> = option_env!("CARGO_TARGET_TMPDIR");
+    const TARGET_DIR: Option<&'static str> = option_env!("CARGO_TARGET_DIR");
+
     fn get_test_dir() -> PathBuf {
-        env::current_dir().unwrap()
+        match TARGET_TMPDIR {
+            Some(dir) => PathBuf::from(dir),
+            None => match TARGET_DIR {
+                Some(dir) => PathBuf::from(dir),
+                None => env::current_dir().unwrap(),
+            }
+        }
     }
 
     fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
