@@ -44,7 +44,9 @@ impl error::Error for XdgError {
     }
     fn cause(&self) -> Option<&dyn error::Error> {
         match self.kind {
-            XdgRuntimeDirInaccessible(_, ref e) => Some(e),
+            XdgRuntimeDirInaccessible(_, ref e)
+            | XdgUserDirsOpen(ref e)
+            | XdgUserDirsRead(ref e) => Some(e),
             _ => None,
         }
     }
