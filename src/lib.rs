@@ -19,6 +19,7 @@ use BaseDirectoriesError as Error;
 /// BaseDirectories allows to look up paths to configuration, data,
 /// cache and runtime files in well-known locations according to
 /// the [X Desktop Group Base Directory specification][xdg-basedir].
+///
 /// [xdg-basedir]: http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 ///
 /// The Base Directory specification defines five kinds of files:
