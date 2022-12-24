@@ -1,6 +1,7 @@
 #![cfg(any(unix, target_os = "redox"))]
 
 extern crate dirs;
+#[cfg(feature = "serde")]
 extern crate serde;
 
 use std::fmt;
@@ -14,6 +15,7 @@ use std::ffi::OsString;
 
 use std::os::unix::fs::PermissionsExt;
 
+#[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
 
 use BaseDirectoriesErrorKind::*;
@@ -75,7 +77,8 @@ use BaseDirectoriesError as Error;
 /// The `logo.png` will be searched in the proper locations for
 /// supplementary data files, most likely `~/.local/share/myapp/logo.png`,
 /// then `/usr/local/share/myapp/logo.png` and `/usr/share/myapp/logo.png`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseDirectories {
     shared_prefix: PathBuf,
     user_prefix: PathBuf,
