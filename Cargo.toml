@@ -16,5 +16,9 @@ authors = [
 [lib]
 doctest = false
 
+[features]
+serde = ["dep:serde"]
+
 [dependencies]
 dirs = "4.0"
+serde = { version = "*", features = ["derive"], optional = true }
