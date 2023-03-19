@@ -13,9 +13,6 @@ authors = [
     "whitequark <whitequark@whitequark.org>"
 ]
 
-[features]
-serde = ["dep:serde"]
-
 [dependencies]
 dirs = "4.0"
 serde = { version = "*", features = ["derive"], optional = true }
