@@ -13,9 +13,6 @@ authors = [
     "whitequark <whitequark@whitequark.org>"
 ]
 
-[lib]
-doctest = false
-
 [features]
 serde = ["dep:serde"]
 
