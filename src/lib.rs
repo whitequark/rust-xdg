@@ -112,7 +112,7 @@ pub struct BaseDirectoriesError {
 impl BaseDirectoriesError {
     fn new(kind: BaseDirectoriesErrorKind) -> BaseDirectoriesError {
         BaseDirectoriesError {
-            kind: kind,
+            kind,
         }
     }
 }
@@ -273,7 +273,7 @@ impl BaseDirectories {
         fn abspaths(paths: OsString) -> Option<Vec<PathBuf>> {
             let paths = env::split_paths(&paths)
                             .map(PathBuf::from)
-                            .filter(|ref path| path.is_absolute())
+                            .filter(|path| path.is_absolute())
                             .collect::<Vec<_>>();
             if paths.is_empty() {
                 None
@@ -330,12 +330,12 @@ impl BaseDirectories {
             })?;
             let permissions = fs::metadata(runtime_dir).map_err(|e| {
                 Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e))
-            })?.permissions().mode() as u32;
+            })?.permissions().mode();
             if permissions & 0o077 != 0 {
                 Err(Error::new(XdgRuntimeDirInsecure(runtime_dir.clone(),
                                                      Permissions(permissions))))
             } else {
-                Ok(&runtime_dir)
+                Ok(runtime_dir)
             }
         } else {
             Err(Error::new(XdgRuntimeDirMissing))
@@ -641,10 +641,10 @@ fn write_file<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
         Some(parent) => fs::create_dir_all(home.join(parent))?,
         None => fs::create_dir_all(home)?,
     }
-    Ok(PathBuf::from(home.join(path.as_ref())))
+    Ok(home.join(path.as_ref()))
 }
 
-fn create_directory<P>(home: &PathBuf, path: P) -> io::Result<PathBuf>
+fn create_directory<P>(home: &Path, path: P) -> io::Result<PathBuf>
         where P: AsRef<Path> {
     let full_path = home.join(path.as_ref());
     fs::create_dir_all(&full_path)?;
@@ -658,7 +658,7 @@ fn path_exists<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
     inner(path.as_ref())
 }
 
-fn read_file(home: &PathBuf, dirs: &Vec<PathBuf>,
+fn read_file(home: &Path, dirs: &[PathBuf],
              user_prefix: &Path, shared_prefix: &Path, path: &Path)
              -> Option<PathBuf> {
     let full_path = home.join(user_prefix).join(path);
@@ -681,7 +681,7 @@ pub struct FileFindIterator {
 }
 
 impl FileFindIterator {
-    fn new(home: &PathBuf, dirs: &Vec<PathBuf>,
+    fn new(home: &Path, dirs: &[PathBuf],
            user_prefix: &Path, shared_prefix: &Path, path: &Path)
            -> FileFindIterator {
        let mut search_dirs = Vec::new();
