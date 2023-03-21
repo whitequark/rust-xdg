@@ -396,32 +396,32 @@ impl BaseDirectories {
     /// Leading directories in the returned path are pre-created;
     /// if that is not possible, an error is returned.
     pub fn place_config_file<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        write_file(&self.config_home, self.user_prefix.join(path))
+        write_file(&self.config_home, &self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a data file in `XDG_DATA_HOME`.
     pub fn place_data_file<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        write_file(&self.data_home, self.user_prefix.join(path))
+        write_file(&self.data_home, &self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a cache file in `XDG_CACHE_HOME`.
     pub fn place_cache_file<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        write_file(&self.cache_home, self.user_prefix.join(path))
+        write_file(&self.cache_home, &self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// an application state file in `XDG_STATE_HOME`.
     pub fn place_state_file<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        write_file(&self.state_home, self.user_prefix.join(path))
+        write_file(&self.state_home, &self.user_prefix.join(path))
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but for
     /// a runtime file in `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
     pub fn place_runtime_file<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        write_file(self.get_runtime_directory()?, self.user_prefix.join(path))
+        write_file(self.get_runtime_directory()?, &self.user_prefix.join(path))
     }
 
     /// Given a relative path `path`, returns an absolute path to an existing
@@ -524,32 +524,32 @@ impl BaseDirectories {
     /// leading to it are created if they did not exist;
     /// if that is not possible, an error is returned.
     pub fn create_config_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        create_directory(&self.config_home, self.user_prefix.join(path))
+        create_directory(&self.config_home, &self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a data directory in `XDG_DATA_HOME`.
     pub fn create_data_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        create_directory(&self.data_home, self.user_prefix.join(path))
+        create_directory(&self.data_home, &self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a cache directory in `XDG_CACHE_HOME`.
     pub fn create_cache_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        create_directory(&self.cache_home, self.user_prefix.join(path))
+        create_directory(&self.cache_home, &self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for an application state directory in `XDG_STATE_HOME`.
     pub fn create_state_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        create_directory(&self.state_home, self.user_prefix.join(path))
+        create_directory(&self.state_home, &self.user_prefix.join(path))
     }
 
     /// Like [`create_config_directory()`](#method.create_config_directory),
     /// but for a runtime directory in `XDG_RUNTIME_DIR`.
     /// If `XDG_RUNTIME_DIR` is not available, returns an error.
     pub fn create_runtime_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
-        create_directory(self.get_runtime_directory()?, self.user_prefix.join(path))
+        create_directory(self.get_runtime_directory()?, &self.user_prefix.join(path))
     }
 
     /// Given a relative path `path`, list absolute paths to all files
@@ -686,25 +686,22 @@ impl BaseDirectories {
     }
 }
 
-fn write_file<P: AsRef<Path>>(home: &PathBuf, path: P) -> io::Result<PathBuf> {
-    match path.as_ref().parent() {
+fn write_file(home: &Path, path: &Path) -> io::Result<PathBuf> {
+    match path.parent() {
         Some(parent) => fs::create_dir_all(home.join(parent))?,
         None => fs::create_dir_all(home)?,
     }
     Ok(home.join(path))
 }
 
-fn create_directory<P: AsRef<Path>>(home: &Path, path: P) -> io::Result<PathBuf> {
+fn create_directory(home: &Path, path: &Path) -> io::Result<PathBuf> {
     let full_path = home.join(path);
     fs::create_dir_all(&full_path)?;
     Ok(full_path)
 }
 
-fn path_exists<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
-    fn inner(path: &Path) -> bool {
-        fs::metadata(path).is_ok()
-    }
-    inner(path.as_ref())
+fn path_exists(path: &Path) -> bool {
+    fs::metadata(path).is_ok()
 }
 
 fn read_file(
@@ -842,6 +839,10 @@ mod test {
                 None => env::current_dir().unwrap(),
             },
         }
+    }
+
+    fn path_exists<P: AsRef<Path> + ?Sized>(path: &P) -> bool {
+        super::path_exists(path.as_ref())
     }
 
     fn path_is_dir<P: ?Sized + AsRef<Path>>(path: &P) -> bool {
