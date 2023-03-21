@@ -691,11 +691,11 @@ fn write_file<P: AsRef<Path>>(home: &PathBuf, path: P) -> io::Result<PathBuf> {
         Some(parent) => fs::create_dir_all(home.join(parent))?,
         None => fs::create_dir_all(home)?,
     }
-    Ok(home.join(path.as_ref()))
+    Ok(home.join(path))
 }
 
 fn create_directory<P: AsRef<Path>>(home: &Path, path: P) -> io::Result<PathBuf> {
-    let full_path = home.join(path.as_ref());
+    let full_path = home.join(path);
     fs::create_dir_all(&full_path)?;
     Ok(full_path)
 }
@@ -759,7 +759,7 @@ impl Iterator for FileFindIterator {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let dir = self.search_dirs.next()?;
-            let candidate = dir.join(self.relpath.clone());
+            let candidate = dir.join(&self.relpath);
             if path_exists(&candidate) {
                 return Some(candidate);
             }
@@ -771,7 +771,7 @@ impl DoubleEndedIterator for FileFindIterator {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             let dir = self.search_dirs.next_back()?;
-            let candidate = dir.join(self.relpath.clone());
+            let candidate = dir.join(&self.relpath);
             if path_exists(&candidate) {
                 return Some(candidate);
             }
@@ -813,7 +813,7 @@ fn list_files_once(
     let mut seen = HashSet::new();
     list_files(home, dirs, user_prefix, shared_prefix, path)
         .into_iter()
-        .filter(|path| match path.clone().file_name() {
+        .filter(|path| match path.file_name() {
             None => false,
             Some(filename) => {
                 if seen.contains(filename) {
