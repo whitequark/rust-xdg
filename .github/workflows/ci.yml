@@ -6,7 +6,19 @@ env:
   minrust: 1.27.2
 
 jobs:
-  test:
+  Lints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings
+        if: always()
+
+  Test:
     runs-on: ubuntu-latest
 
     steps:
