@@ -4,7 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::{env, error, fmt, fs, io};
 
-use dirs;
+use home;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -198,7 +198,7 @@ impl BaseDirectories {
     /// and returns a value that can be used for lookup.
     /// The following environment variables are examined:
     ///
-    ///   * `HOME`; if not set: use the same fallback as `dirs::home_dir()`;
+    ///   * `HOME`; if not set: use the same fallback as `home::home_dir()`;
     ///     if still not available: return an error.
     ///   * `XDG_DATA_HOME`; if not set: assumed to be `$HOME/.local/share`.
     ///   * `XDG_CONFIG_HOME`; if not set: assumed to be `$HOME/.config`.
@@ -290,7 +290,7 @@ impl BaseDirectories {
             }
         }
 
-        let home = dirs::home_dir().ok_or(Error::new(HomeMissing))?;
+        let home = home::home_dir().ok_or(Error::new(HomeMissing))?;
 
         let data_home = env_var("XDG_DATA_HOME")
             .and_then(abspath)

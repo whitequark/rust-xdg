@@ -14,5 +14,5 @@ authors = [
 ]
 
 [dependencies]
-dirs = "5.0"
+home = "0.5"
 serde = { version = "*", features = ["derive"], optional = true }

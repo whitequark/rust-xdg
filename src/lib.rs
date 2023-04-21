@@ -1,6 +1,6 @@
 #![cfg(any(unix, target_os = "redox"))]
 
-extern crate dirs;
+extern crate home;
 #[cfg(feature = "serde")]
 extern crate serde;
 
