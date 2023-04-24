@@ -4,7 +4,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::{env, error, fmt, fs, io};
 
-use home;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -36,14 +35,12 @@ use self::ErrorKind::*;
 /// To configure paths for application `myapp`:
 ///
 /// ```
-/// extern crate xdg;
 /// let xdg_dirs = xdg::BaseDirectories::with_prefix("myapp").unwrap();
 /// ```
 ///
 /// To store configuration:
 ///
 /// ```
-/// # extern crate xdg;
 /// # use std::fs::File;
 /// # use std::io::{Error, Write};
 /// # fn main() -> Result<(), Error> {
@@ -64,7 +61,6 @@ use self::ErrorKind::*;
 /// To retrieve supplementary data:
 ///
 /// ```no_run
-/// # extern crate xdg;
 /// # use std::fs::File;
 /// # use std::io::{Error, Read, Write};
 /// # fn main() -> Result<(), Error> {
@@ -107,7 +103,7 @@ impl Error {
 }
 
 impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.kind.fmt(f)
     }
 }
@@ -132,7 +128,7 @@ impl error::Error for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             HomeMissing => write!(f, "$HOME must be set"),
             XdgRuntimeDirInaccessible(ref dir, ref error) => {
@@ -173,14 +169,14 @@ impl From<Error> for io::Error {
 struct Permissions(u32);
 
 impl fmt::Debug for Permissions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Permissions(p) = *self;
         write!(f, "{:#05o}", p)
     }
 }
 
 impl fmt::Display for Permissions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self, f)
     }
 }
