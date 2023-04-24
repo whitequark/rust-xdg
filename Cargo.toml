@@ -6,6 +6,7 @@ homepage = "https://github.com/whitequark/rust-xdg"
 repository = "https://github.com/whitequark/rust-xdg"
 documentation = "https://docs.rs/xdg/"
 readme = "README.md"
+edition = "2018"
 keywords = ["linux", "configuration"]
 license = "Apache-2.0/MIT"
 authors = [
