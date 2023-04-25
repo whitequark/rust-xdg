@@ -8,7 +8,7 @@ documentation = "https://docs.rs/xdg/"
 readme = "README.md"
 edition = "2018"
 keywords = ["linux", "configuration"]
-license = "Apache-2.0/MIT"
+license = "Apache-2.0 OR MIT"
 authors = [
     "Ben Longbons <b.r.longbons@gmail.com>",
     "whitequark <whitequark@whitequark.org>"
