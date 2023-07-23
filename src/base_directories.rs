@@ -1267,6 +1267,11 @@ mod test {
         let config_dir = format!("{}/config", symlinks_dir);
         let myapp_dir = format!("{}/myapp", config_dir);
 
+        if Path::new(&myapp_dir).exists() {
+            fs::remove_file(&myapp_dir).unwrap();
+        }
+        std::os::unix::fs::symlink("../../user/config/myapp", &myapp_dir).unwrap();
+
         assert!(path_exists(&myapp_dir));
         assert!(path_exists(&config_dir));
         assert!(path_exists(&symlinks_dir));
@@ -1284,5 +1289,7 @@ mod test {
             xd.find_config_file("user_config.file").unwrap(),
             PathBuf::from(&format!("{}/user_config.file", myapp_dir))
         );
+
+        fs::remove_file(&myapp_dir).unwrap();
     }
 }
