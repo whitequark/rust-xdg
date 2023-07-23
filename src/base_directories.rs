@@ -349,10 +349,7 @@ impl BaseDirectories {
 
     /// Returns `true` if `XDG_RUNTIME_DIR` is available, `false` otherwise.
     pub fn has_runtime_directory(&self) -> bool {
-        match self.get_runtime_directory() {
-            Ok(_) => true,
-            _ => false,
-        }
+        self.get_runtime_directory().is_ok()
     }
 
     /// Like [`place_config_file()`](#method.place_config_file), but does
