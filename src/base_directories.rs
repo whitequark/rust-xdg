@@ -194,7 +194,7 @@ impl BaseDirectories {
     /// and returns a value that can be used for lookup.
     /// The following environment variables are examined:
     ///
-    ///   * `HOME`; if not set: use the same fallback as `home::home_dir()`;
+    ///   * `HOME`; if not set: use the same fallback as `std::env::home_dir()`;
     ///     if still not available: return an error.
     ///   * `XDG_DATA_HOME`; if not set: assumed to be `$HOME/.local/share`.
     ///   * `XDG_CONFIG_HOME`; if not set: assumed to be `$HOME/.config`.
@@ -286,7 +286,10 @@ impl BaseDirectories {
             }
         }
 
-        let home = home::home_dir().ok_or(Error::new(HomeMissing))?;
+        // This crate only supports Unix, and the behavior of `std::env::home_dir()` is only
+        // problematic on Windows.
+        #[allow(deprecated)]
+        let home = std::env::home_dir().ok_or(Error::new(HomeMissing))?;
 
         let data_home = env_var("XDG_DATA_HOME")
             .and_then(abspath)
