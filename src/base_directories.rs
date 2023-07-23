@@ -693,6 +693,12 @@ impl BaseDirectories {
     }
 }
 
+impl Default for BaseDirectories {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn write_file(home: &Path, path: &Path) -> io::Result<PathBuf> {
     match path.parent() {
         Some(parent) => fs::create_dir_all(home.join(parent))?,
