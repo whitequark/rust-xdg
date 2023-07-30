@@ -79,17 +79,35 @@ use self::ErrorKind::*;
 /// supplementary data files, most likely `~/.local/share/myapp/logo.png`,
 /// then `/usr/local/share/myapp/logo.png` and `/usr/share/myapp/logo.png`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseDirectories {
-    shared_prefix: PathBuf,
-    user_prefix: PathBuf,
-    data_home: Option<PathBuf>,
-    config_home: Option<PathBuf>,
-    cache_home: Option<PathBuf>,
-    state_home: Option<PathBuf>,
-    data_dirs: Vec<PathBuf>,
-    config_dirs: Vec<PathBuf>,
-    runtime_dir: Option<PathBuf>,
+    /// Prefix path appended to all path lookups in system directories as described in [`BaseDirectories::with_prefix`].
+    /// May be the empty path.
+    pub shared_prefix: PathBuf,
+    /// Prefix path appended to all path lookups in user directories as described in [`BaseDirectories::with_profile`].
+    /// Note that this value already contains `shared_prefix` as prefix, and is identical to it when constructed with
+    /// [`BaseDirectories::with_prefix`]. May be the empty path.
+    pub user_prefix: PathBuf,
+    /// Like [`BaseDirectories::get_data_home`], but without any prefixes applied.
+    /// Is guaranteed to not be `None` unless no HOME could be found.
+    pub data_home: Option<PathBuf>,
+    /// Like [`BaseDirectories::get_config_home`], but without any prefixes applied.
+    /// Is guaranteed to not be `None` unless no HOME could be found.
+    pub config_home: Option<PathBuf>,
+    /// Like [`BaseDirectories::get_cache_home`], but without any prefixes applied.
+    /// Is guaranteed to not be `None` unless no HOME could be found.
+    pub cache_home: Option<PathBuf>,
+    /// Like [`BaseDirectories::get_state_home`], but without any prefixes applied.
+    /// Is guaranteed to not be `None` unless no HOME could be found.
+    pub state_home: Option<PathBuf>,
+    /// Like [`BaseDirectories::get_data_dirs`], but without any prefixes applied.
+    pub data_dirs: Vec<PathBuf>,
+    /// Like [`BaseDirectories::get_config_dirs`], but without any prefixes applied.
+    pub config_dirs: Vec<PathBuf>,
+    /// Like [`BaseDirectories::get_runtime_directory`], but without any of the sanity checks
+    /// on the directory (like permissions).
+    pub runtime_dir: Option<PathBuf>,
 }
 
 pub struct Error {
@@ -212,7 +230,9 @@ impl BaseDirectories {
     }
 
     /// Same as [`new()`](#method.new), but `prefix` is implicitly prepended to
-    /// every path that is looked up.
+    /// every path that is looked up. This is usually the application's name,
+    /// preferably in [Reverse domain name notation](https://en.wikipedia.org/wiki/Reverse_domain_name_notation)
+    /// (The spec does not mandate this though, it's just a convention).
     pub fn with_prefix<P: AsRef<Path>>(prefix: P) -> BaseDirectories {
         BaseDirectories::with_env(prefix, "", &|name| env::var_os(name))
     }
@@ -655,6 +675,7 @@ impl BaseDirectories {
     }
 
     /// Returns the user-specific data directory (set by `XDG_DATA_HOME`).
+    /// Is guaranteed to not return `None` unless no HOME could be found.
     pub fn get_data_home(&self) -> Option<PathBuf> {
         self.data_home
             .as_ref()
@@ -662,7 +683,8 @@ impl BaseDirectories {
     }
 
     /// Returns the user-specific configuration directory (set by
-    /// `XDG_CONFIG_HOME`).
+    /// `XDG_CONFIG_HOME` or default fallback, plus the prefix and profile if configured).
+    /// Is guaranteed to not return `None` unless no HOME could be found.
     pub fn get_config_home(&self) -> Option<PathBuf> {
         self.config_home
             .as_ref()
@@ -670,7 +692,8 @@ impl BaseDirectories {
     }
 
     /// Returns the user-specific directory for non-essential (cached) data
-    /// (set by `XDG_CACHE_HOME`).
+    /// (set by `XDG_CACHE_HOME` or default fallback, plus the prefix and profile if configured).
+    /// Is guaranteed to not return `None` unless no HOME could be found.
     pub fn get_cache_home(&self) -> Option<PathBuf> {
         self.cache_home
             .as_ref()
@@ -678,7 +701,8 @@ impl BaseDirectories {
     }
 
     /// Returns the user-specific directory for application state data
-    /// (set by `XDG_STATE_HOME`).
+    /// (set by `XDG_STATE_HOME` or default fallback, plus the prefix and profile if configured).
+    /// Is guaranteed to not return `None` unless no HOME could be found.
     pub fn get_state_home(&self) -> Option<PathBuf> {
         self.state_home
             .as_ref()
@@ -687,7 +711,7 @@ impl BaseDirectories {
 
     /// Returns a preference ordered (preferred to less preferred) list of
     /// supplementary data directories, ordered by preference (set by
-    /// `XDG_DATA_DIRS`).
+    /// `XDG_DATA_DIRS` or default fallback, plus the prefix if configured).
     pub fn get_data_dirs(&self) -> Vec<PathBuf> {
         self.data_dirs
             .iter()
@@ -696,7 +720,8 @@ impl BaseDirectories {
     }
 
     /// Returns a preference ordered (preferred to less preferred) list of
-    /// supplementary configuration directories (set by `XDG_CONFIG_DIRS`).
+    /// supplementary configuration directories (set by `XDG_CONFIG_DIRS`
+    /// or default fallback, plus the prefix if configured).
     pub fn get_config_dirs(&self) -> Vec<PathBuf> {
         self.config_dirs
             .iter()
