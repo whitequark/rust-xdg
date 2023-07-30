@@ -7,6 +7,7 @@ repository = "https://github.com/whitequark/rust-xdg"
 documentation = "https://docs.rs/xdg/"
 readme = "README.md"
 edition = "2018"
+rust-version = "1.40.0" # Also update in .github/workflows/ci.yml
 categories = ["filesystem"]
 keywords = ["linux", "configuration"]
 license = "Apache-2.0 OR MIT"
