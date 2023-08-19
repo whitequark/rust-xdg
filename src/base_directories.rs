@@ -916,15 +916,16 @@ mod test {
             .to_owned()
     }
 
+    #[cfg(test)]
     fn make_env(vars: Vec<(&'static str, String)>) -> Box<dyn Fn(&str) -> Option<OsString>> {
-        return Box::new(move |name| {
+        Box::new(move |name| {
             for &(key, ref value) in vars.iter() {
                 if key == name {
                     return Some(OsString::from(value));
                 }
             }
             None
-        });
+        })
     }
 
     #[test]
