@@ -82,6 +82,9 @@ use self::ErrorKind::*;
 #[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BaseDirectories {
+    /// Home path prepended to all path lookups in system directories as described in [`BaseDirectories::with_home`].
+    /// May be the empty path, though if none is provided by [`BaseDirectories::with_home`], falls back to `std::env::home_dir()`.
+    pub home_dir: Option<PathBuf>,
     /// Prefix path appended to all path lookups in system directories as described in [`BaseDirectories::with_prefix`].
     /// May be the empty path.
     pub shared_prefix: PathBuf,
@@ -226,7 +229,7 @@ impl BaseDirectories {
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
     pub fn new() -> BaseDirectories {
-        BaseDirectories::with_env("", "", &|name| env::var_os(name))
+        BaseDirectories::with_env("", "", "", &|name| env::var_os(name))
     }
 
     /// Same as [`new()`](#method.new), but `prefix` is implicitly prepended to
@@ -234,7 +237,7 @@ impl BaseDirectories {
     /// preferably in [Reverse domain name notation](https://en.wikipedia.org/wiki/Reverse_domain_name_notation)
     /// (The spec does not mandate this though, it's just a convention).
     pub fn with_prefix<P: AsRef<Path>>(prefix: P) -> BaseDirectories {
-        BaseDirectories::with_env(prefix, "", &|name| env::var_os(name))
+        BaseDirectories::with_env(prefix, "", "", &|name| env::var_os(name))
     }
 
     /// Same as [`with_prefix()`](#method.with_prefix),
@@ -260,19 +263,55 @@ impl BaseDirectories {
         P1: AsRef<Path>,
         P2: AsRef<Path>,
     {
-        BaseDirectories::with_env(prefix, profile, &|name| env::var_os(name))
+        BaseDirectories::with_env(prefix, profile, "", &|name| env::var_os(name))
     }
 
-    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
+    /// Same as [`new()`](#method.new),
+    /// but a custom `HOME` is used in every path that is looked up.
+    pub fn with_home<P: AsRef<Path>>(home: P) -> BaseDirectories {
+        BaseDirectories::with_env("", "", home, &|name| env::var_os(name))
+    }
+
+    /// Same as [`with_prefix()`](#method.with_prefix),
+    /// but a custom `HOME` is used in every path that is looked up.
+    pub fn with_home_prefix<P1: AsRef<Path>, P2: AsRef<Path>>(
+        home: P1,
+        prefix: P2,
+    ) -> BaseDirectories {
+        BaseDirectories::with_env(prefix, "", home, &|name| env::var_os(name))
+    }
+
+    /// Same as [`with_profile()`](#method.with_profile),
+    /// but a custom `HOME` is used in every path that is looked up.
+    pub fn with_home_profile<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
+        home: P1,
+        prefix: P2,
+        profile: P3,
+    ) -> BaseDirectories {
+        BaseDirectories::with_env(prefix, profile, home, &|name| env::var_os(name))
+    }
+
+    fn with_env<P1, P2, P3, T: ?Sized>(
+        prefix: P1,
+        profile: P2,
+        home: P3,
+        env_var: &T,
+    ) -> BaseDirectories
     where
         P1: AsRef<Path>,
         P2: AsRef<Path>,
+        P3: AsRef<Path>,
         T: Fn(&str) -> Option<OsString>,
     {
-        BaseDirectories::with_env_impl(prefix.as_ref(), profile.as_ref(), env_var)
+        BaseDirectories::with_env_impl(prefix.as_ref(), profile.as_ref(), home.as_ref(), env_var)
     }
 
-    fn with_env_impl<T: ?Sized>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
+    fn with_env_impl<T: ?Sized>(
+        prefix: &Path,
+        profile: &Path,
+        home: &Path,
+        env_var: &T,
+    ) -> BaseDirectories
     where
         T: Fn(&str) -> Option<OsString>,
     {
@@ -300,7 +339,11 @@ impl BaseDirectories {
         // This crate only supports Unix, and the behavior of `std::env::home_dir()` is only
         // problematic on Windows.
         #[allow(deprecated)]
-        let home = std::env::home_dir();
+        let home = if home.as_os_str().is_empty() {
+            std::env::home_dir()
+        } else {
+            Some(PathBuf::from(home))
+        };
 
         let data_home = env_var("XDG_DATA_HOME")
             .and_then(abspath)
@@ -325,6 +368,7 @@ impl BaseDirectories {
 
         let prefix = PathBuf::from(prefix);
         BaseDirectories {
+            home_dir: home,
             user_prefix: prefix.join(profile),
             shared_prefix: prefix,
             data_home,
@@ -952,6 +996,253 @@ mod test {
         });
     }
 
+    fn spawn_test_public_new() -> std::thread::JoinHandle<()> {
+        std::thread::spawn(|| {
+            let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+            std::env::set_var("HOME", format!("{}/test_files/defaults", cwd));
+            let xd = BaseDirectories::new();
+
+            assert_eq!(
+                xd.find_data_file("toplevel.share"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/share/toplevel.share",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_config_file("toplevel.config"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.config/toplevel.config",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_cache_file("toplevel.cache"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.cache/toplevel.cache",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_state_file("toplevel.state"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/state/toplevel.state",
+                    cwd
+                )))
+            );
+        })
+    }
+
+    #[test]
+    fn test_public_new() {
+        let result = std::panic::catch_unwind(|| {
+            let home_handle = spawn_test_public_new();
+            home_handle.join().unwrap();
+        });
+        assert!(result.is_ok());
+    }
+
+    fn spawn_test_public_with_prefix() -> std::thread::JoinHandle<()> {
+        std::thread::spawn(|| {
+            let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+            std::env::set_var("HOME", format!("{}/test_files/defaults", cwd));
+            let xd = BaseDirectories::with_prefix("myapp");
+
+            assert_eq!(
+                xd.find_data_file("prefix.share"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/share/myapp/prefix.share",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_config_file("prefix.config"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.config/myapp/prefix.config",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_cache_file("prefix.cache"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.cache/myapp/prefix.cache",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_state_file("prefix.state"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/state/myapp/prefix.state",
+                    cwd
+                )))
+            );
+        })
+    }
+
+    #[test]
+    fn test_public_with_prefix() {
+        let result = std::panic::catch_unwind(|| {
+            let home_handle = spawn_test_public_with_prefix();
+            home_handle.join().unwrap();
+        });
+        assert!(result.is_ok());
+    }
+
+    fn spawn_test_public_with_profile() -> std::thread::JoinHandle<()> {
+        std::thread::spawn(|| {
+            let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+            std::env::set_var("HOME", format!("{}/test_files/defaults", cwd));
+            let xd = BaseDirectories::with_profile("myapp", "default_profile");
+
+            assert_eq!(
+                xd.find_data_file("profile.share"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/share/myapp/default_profile/profile.share",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_config_file("profile.config"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.config/myapp/default_profile/profile.config",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_cache_file("profile.cache"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.cache/myapp/default_profile/profile.cache",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_state_file("profile.state"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/state/myapp/default_profile/profile.state",
+                    cwd
+                )))
+            );
+        })
+    }
+
+    #[test]
+    fn test_public_with_profile() {
+        let result = std::panic::catch_unwind(|| {
+            let home_handle = spawn_test_public_with_profile();
+            home_handle.join().unwrap();
+        });
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_public_with_home() {
+        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let xd = BaseDirectories::with_home(format!("{}/test_files/defaults", cwd));
+
+        assert_eq!(
+            xd.find_data_file("toplevel.share"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/share/toplevel.share",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_config_file("toplevel.config"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.config/toplevel.config",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_cache_file("toplevel.cache"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.cache/toplevel.cache",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_state_file("toplevel.state"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/state/toplevel.state",
+                cwd
+            )))
+        );
+    }
+
+    #[test]
+    fn test_public_with_home_prefix() {
+        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let xd = BaseDirectories::with_home_prefix(format!("{}/test_files/defaults", cwd), "myapp");
+
+        assert_eq!(
+            xd.find_data_file("prefix.share"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/share/myapp/prefix.share",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_config_file("prefix.config"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.config/myapp/prefix.config",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_cache_file("prefix.cache"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.cache/myapp/prefix.cache",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_state_file("prefix.state"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/state/myapp/prefix.state",
+                cwd
+            )))
+        );
+    }
+
+    #[test]
+    fn test_public_with_home_profile() {
+        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let xd = BaseDirectories::with_home_profile(
+            format!("{}/test_files/defaults", cwd),
+            "myapp",
+            "default_profile",
+        );
+
+        assert_eq!(
+            xd.find_data_file("profile.share"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/share/myapp/default_profile/profile.share",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_config_file("profile.config"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.config/myapp/default_profile/profile.config",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_cache_file("profile.cache"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.cache/myapp/default_profile/profile.cache",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_state_file("profile.state"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/state/myapp/default_profile/profile.state",
+                cwd
+            )))
+        );
+    }
+
     #[test]
     fn test_files_exists() {
         assert!(path_exists("test_files"));
@@ -970,8 +1261,8 @@ mod test {
         let xd = BaseDirectories::with_env(
             "",
             "",
+            "test_files/user".to_string(),
             &*make_env(vec![
-                ("HOME", "test_files/user".to_string()),
                 ("XDG_DATA_HOME", "test_files/user/data".to_string()),
                 ("XDG_CONFIG_HOME", "test_files/user/config".to_string()),
                 ("XDG_CACHE_HOME", "test_files/user/cache".to_string()),
@@ -988,8 +1279,7 @@ mod test {
     #[test]
     fn test_good_environment() {
         let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-        let xd = BaseDirectories::with_env("", "", &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
+        let xd = BaseDirectories::with_env("", "", format!("{}/test_files/user", cwd), &*make_env(vec![
                 ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
                 ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
                 ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
@@ -1051,15 +1341,102 @@ mod test {
     }
 
     #[test]
+    fn test_no_environment() {
+        let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+        let xd = BaseDirectories::with_env(
+            "",
+            "",
+            format!("{}/test_files/defaults", cwd),
+            &*make_env(vec![]),
+        );
+
+        assert_eq!(
+            xd.find_data_file("toplevel.share"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/share/toplevel.share",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_config_file("toplevel.config"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.config/toplevel.config",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_cache_file("toplevel.cache"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.cache/toplevel.cache",
+                cwd
+            )))
+        );
+        assert_eq!(
+            xd.find_state_file("toplevel.state"),
+            Some(PathBuf::from(format!(
+                "{}/test_files/defaults/.local/state/toplevel.state",
+                cwd
+            )))
+        );
+    }
+
+    fn spawn_test_home_environment() -> std::thread::JoinHandle<()> {
+        std::thread::spawn(|| {
+            let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
+            std::env::set_var("HOME", format!("{}/test_files/defaults", cwd));
+            let xd = BaseDirectories::with_env("", "", "", &*make_env(vec![]));
+
+            assert_eq!(
+                xd.find_data_file("toplevel.share"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/share/toplevel.share",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_config_file("toplevel.config"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.config/toplevel.config",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_cache_file("toplevel.cache"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.cache/toplevel.cache",
+                    cwd
+                )))
+            );
+            assert_eq!(
+                xd.find_state_file("toplevel.state"),
+                Some(PathBuf::from(format!(
+                    "{}/test_files/defaults/.local/state/toplevel.state",
+                    cwd
+                )))
+            );
+        })
+    }
+
+    #[test]
+    fn test_home_environment() {
+        let result = std::panic::catch_unwind(|| {
+            let home_handle = spawn_test_home_environment();
+            home_handle.join().unwrap();
+        });
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_runtime_bad() {
         let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
         let xd = BaseDirectories::with_env(
             "",
             "",
-            &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
-                ("XDG_RUNTIME_DIR", format!("{}/test_files/runtime-bad", cwd)),
-            ]),
+            format!("{}/test_files/user", cwd),
+            &*make_env(vec![(
+                "XDG_RUNTIME_DIR",
+                format!("{}/test_files/runtime-bad", cwd),
+            )]),
         );
         assert!(xd.has_runtime_directory() == false);
     }
@@ -1079,13 +1456,11 @@ mod test {
         let xd = BaseDirectories::with_env(
             "",
             "",
-            &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", test_dir)),
-                (
-                    "XDG_RUNTIME_DIR",
-                    format!("{}/test_files/runtime-good", test_dir),
-                ),
-            ]),
+            format!("{}/test_files/user", test_dir),
+            &*make_env(vec![(
+                "XDG_RUNTIME_DIR",
+                format!("{}/test_files/runtime-good", test_dir),
+            )]),
         );
 
         xd.create_runtime_directory("foo").unwrap();
@@ -1135,8 +1510,7 @@ mod test {
     #[test]
     fn test_lists() {
         let cwd = env::current_dir().unwrap().to_string_lossy().into_owned();
-        let xd = BaseDirectories::with_env("", "", &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
+        let xd = BaseDirectories::with_env("", "", format!("{}/test_files/user", cwd), &*make_env(vec![
                 ("XDG_DATA_HOME", format!("{}/test_files/user/data", cwd)),
                 ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
                 ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
@@ -1197,8 +1571,8 @@ mod test {
         let xd = BaseDirectories::with_env(
             "",
             "",
+            format!("{}/test_files/user", test_dir),
             &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", test_dir)),
                 (
                     "XDG_DATA_HOME",
                     format!("{}/test_files/user/data", test_dir),
@@ -1265,10 +1639,11 @@ mod test {
         let xd = BaseDirectories::with_env(
             "myapp",
             "",
-            &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
-                ("XDG_CACHE_HOME", format!("{}/test_files/user/cache", cwd)),
-            ]),
+            format!("{}/test_files/user", cwd),
+            &*make_env(vec![(
+                "XDG_CACHE_HOME",
+                format!("{}/test_files/user/cache", cwd),
+            )]),
         );
         assert_eq!(
             xd.get_cache_file("cache.db").unwrap(),
@@ -1286,8 +1661,8 @@ mod test {
         let xd = BaseDirectories::with_env(
             "myapp",
             "default_profile",
+            format!("{}/test_files/user", cwd),
             &*make_env(vec![
-                ("HOME", format!("{}/test_files/user", cwd)),
                 ("XDG_CONFIG_HOME", format!("{}/test_files/user/config", cwd)),
                 (
                     "XDG_CONFIG_DIRS",
@@ -1333,10 +1708,8 @@ mod test {
         let xd = BaseDirectories::with_env(
             "myapp",
             "",
-            &*make_env(vec![
-                ("HOME", symlinks_dir),
-                ("XDG_CONFIG_HOME", config_dir),
-            ]),
+            symlinks_dir,
+            &*make_env(vec![("XDG_CONFIG_HOME", config_dir)]),
         );
         assert_eq!(
             xd.find_config_file("user_config.file").unwrap(),
