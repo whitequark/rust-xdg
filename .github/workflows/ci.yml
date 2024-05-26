@@ -19,6 +19,7 @@ jobs:
         continue-on-error: true
       - name: Run clippy
         run: cargo clippy -- -D warnings
+        
         if: always()
 
   Test:
