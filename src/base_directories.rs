@@ -1,3 +1,5 @@
+#![warn(clippy::all, clippy::pedantic)]
+
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;

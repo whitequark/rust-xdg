@@ -9,7 +9,8 @@ jobs:
   Lints:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -22,7 +23,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check --features serde
       - run: cargo test
@@ -31,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install ${{ env.minrust }} toolchain
         uses: dtolnay/rust-toolchain@master
         with:
