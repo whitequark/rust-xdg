@@ -1,4 +1,4 @@
-#![warn(clippy::all, clippy::pedantic)]
+#![warn(clippy::all, clippy::pedantic, clippy::missing_const_for_fn)]
 
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -9,9 +9,9 @@ use std::{env, error, fmt, fs, io};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use self::ErrorKind::*;
+use self::ErrorKind::{HomeMissing, XdgRuntimeDirInaccessible, XdgRuntimeDirInsecure, XdgRuntimeDirMissing};
 
-/// BaseDirectories allows to look up paths to configuration, data,
+/// `BaseDirectories` allows to look up paths to configuration, data,
 /// cache and runtime files in well-known locations according to
 /// the [X Desktop Group Base Directory specification][xdg-basedir].
 ///
@@ -223,7 +223,7 @@ impl BaseDirectories {
     ///   * `XDG_CONFIG_DIRS`; if not set: assumed to be `/etc/xdg`.
     ///   * `XDG_RUNTIME_DIR`; if not accessible or permissions are not `0700`:
     ///     record as inaccessible (can be queried with
-    ///     [has_runtime_directory](method.has_runtime_directory)).
+    ///     [`has_runtime_directory`](method.has_runtime_directory)).
     ///
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
@@ -364,6 +364,7 @@ impl BaseDirectories {
     }
 
     /// Returns `true` if `XDG_RUNTIME_DIR` is available, `false` otherwise.
+    #[must_use]
     pub fn has_runtime_directory(&self) -> bool {
         self.get_runtime_directory().is_ok()
     }
@@ -450,7 +451,7 @@ impl BaseDirectories {
     /// `XDG_CONFIG_DIRS`.
     pub fn find_config_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -464,7 +465,7 @@ impl BaseDirectories {
     /// to highest.
     pub fn find_config_files<P: AsRef<Path>>(&self, path: P) -> FileFindIterator {
         FileFindIterator::new(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -477,7 +478,7 @@ impl BaseDirectories {
     /// `XDG_DATA_DIRS`.
     pub fn find_data_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -491,7 +492,7 @@ impl BaseDirectories {
     /// to highest.
     pub fn find_data_files<P: AsRef<Path>>(&self, path: P) -> FileFindIterator {
         FileFindIterator::new(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -503,7 +504,7 @@ impl BaseDirectories {
     /// cache file, or `None`. Searches `XDG_CACHE_HOME`.
     pub fn find_cache_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.cache_home.as_ref().map(|home| home.as_path()),
+            self.cache_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -515,7 +516,7 @@ impl BaseDirectories {
     /// application state file, or `None`. Searches `XDG_STATE_HOME`.
     pub fn find_state_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.state_home.as_ref().map(|home| home.as_path()),
+            self.state_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -543,7 +544,7 @@ impl BaseDirectories {
     /// if that is not possible, an error is returned.
     pub fn create_config_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -552,7 +553,7 @@ impl BaseDirectories {
     /// but for a data directory in `XDG_DATA_HOME`.
     pub fn create_data_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -561,7 +562,7 @@ impl BaseDirectories {
     /// but for a cache directory in `XDG_CACHE_HOME`.
     pub fn create_cache_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.cache_home.as_ref().map(|home| home.as_path()),
+            self.cache_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -570,7 +571,7 @@ impl BaseDirectories {
     /// but for an application state directory in `XDG_STATE_HOME`.
     pub fn create_state_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.state_home.as_ref().map(|home| home.as_path()),
+            self.state_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -590,7 +591,7 @@ impl BaseDirectories {
     /// `XDG_CONFIG_DIRS`.
     pub fn list_config_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -602,7 +603,7 @@ impl BaseDirectories {
     /// only the first occurence of every distinct filename is returned.
     pub fn list_config_files_once<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files_once(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -615,7 +616,7 @@ impl BaseDirectories {
     /// `XDG_DATA_DIRS`.
     pub fn list_data_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -627,7 +628,7 @@ impl BaseDirectories {
     /// only the first occurence of every distinct filename is returned.
     pub fn list_data_files_once<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files_once(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -639,7 +640,7 @@ impl BaseDirectories {
     /// in directories with path `path` in `XDG_CACHE_HOME`.
     pub fn list_cache_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.cache_home.as_ref().map(|home| home.as_path()),
+            self.cache_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -651,7 +652,7 @@ impl BaseDirectories {
     /// in directories with path `path` in `XDG_STATE_HOME`.
     pub fn list_state_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.state_home.as_ref().map(|home| home.as_path()),
+            self.state_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -769,7 +770,7 @@ fn read_file(
             return Some(full_path);
         }
     }
-    for dir in dirs.iter() {
+    for dir in dirs {
         let full_path = dir.join(shared_prefix).join(path);
         if path_exists(&full_path) {
             return Some(full_path);
@@ -843,9 +844,9 @@ fn list_files(
         if let Ok(entries) = fs::read_dir(dir) {
             into.extend(
                 entries
-                    .filter_map(|entry| entry.ok())
+                    .filter_map(std::result::Result::ok)
                     .map(|entry| entry.path()),
-            )
+            );
         }
     }
     let mut files = Vec::new();
