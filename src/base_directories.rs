@@ -266,19 +266,19 @@ impl BaseDirectories {
         BaseDirectories::with_env(prefix, profile, &|name| env::var_os(name))
     }
 
-    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
-    where
-        P1: AsRef<Path>,
-        P2: AsRef<Path>,
-        T: Fn(&str) -> Option<OsString>,
-    {
+    fn with_env<P1, P2, T>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
+        where
+            P1: AsRef<Path>,
+            P2: AsRef<Path>,
+            T: ?Sized + Fn(&str) -> Option<OsString>,
+        {
         BaseDirectories::with_env_impl(prefix.as_ref(), profile.as_ref(), env_var)
     }
 
-    fn with_env_impl<T: ?Sized>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
-    where
-        T: Fn(&str) -> Option<OsString>,
-    {
+    fn with_env_impl<T>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
+        where
+            T: ?Sized + Fn(&str) -> Option<OsString>,
+        {
         fn abspath(path: OsString) -> Option<PathBuf> {
             let path: PathBuf = PathBuf::from(path);
             if path.is_absolute() {
