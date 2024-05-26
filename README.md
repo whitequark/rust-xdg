@@ -1,5 +1,7 @@
-rust-xdg
-========
+# rust-xdg
+
+[![CI](https://github.com/whitequark/rust-xdg/actions/workflows/ci.yml/badge.svg)](https://github.com/whitequark/rust-xdg/actions/workflows/ci.yml)
+[![Documentation](https://github.com/whitequark/rust-xdg/actions/workflows/docs.yml/badge.svg)](https://github.com/whitequark/rust-xdg/actions/workflows/docs.yml)
 
 rust-xdg is a library that makes it easy to follow the X Desktop Group
 specifications.
