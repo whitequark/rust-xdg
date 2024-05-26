@@ -191,7 +191,7 @@ struct Permissions(u32);
 impl fmt::Debug for Permissions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Permissions(p) = *self;
-        write!(f, "{:#05o}", p)
+        write!(f, "{p:#05o}")
     }
 }
 
@@ -227,6 +227,7 @@ impl BaseDirectories {
     ///
     /// As per specification, if an environment variable contains a relative path,
     /// the behavior is the same as if it was not set.
+    #[must_use]
     pub fn new() -> BaseDirectories {
         BaseDirectories::with_env("", "", &|name| env::var_os(name))
     }
@@ -679,6 +680,7 @@ impl BaseDirectories {
 
     /// Returns the user-specific data directory (set by `XDG_DATA_HOME`).
     /// Is guaranteed to not return `None` unless no HOME could be found.
+    #[must_use]
     pub fn get_data_home(&self) -> Option<PathBuf> {
         self.data_home
             .as_ref()
@@ -688,6 +690,7 @@ impl BaseDirectories {
     /// Returns the user-specific configuration directory (set by
     /// `XDG_CONFIG_HOME` or default fallback, plus the prefix and profile if configured).
     /// Is guaranteed to not return `None` unless no HOME could be found.
+    #[must_use]
     pub fn get_config_home(&self) -> Option<PathBuf> {
         self.config_home
             .as_ref()
@@ -697,6 +700,7 @@ impl BaseDirectories {
     /// Returns the user-specific directory for non-essential (cached) data
     /// (set by `XDG_CACHE_HOME` or default fallback, plus the prefix and profile if configured).
     /// Is guaranteed to not return `None` unless no HOME could be found.
+    #[must_use]
     pub fn get_cache_home(&self) -> Option<PathBuf> {
         self.cache_home
             .as_ref()
@@ -706,6 +710,7 @@ impl BaseDirectories {
     /// Returns the user-specific directory for application state data
     /// (set by `XDG_STATE_HOME` or default fallback, plus the prefix and profile if configured).
     /// Is guaranteed to not return `None` unless no HOME could be found.
+    #[must_use]
     pub fn get_state_home(&self) -> Option<PathBuf> {
         self.state_home
             .as_ref()
@@ -715,6 +720,7 @@ impl BaseDirectories {
     /// Returns a preference ordered (preferred to less preferred) list of
     /// supplementary data directories, ordered by preference (set by
     /// `XDG_DATA_DIRS` or default fallback, plus the prefix if configured).
+    #[must_use]
     pub fn get_data_dirs(&self) -> Vec<PathBuf> {
         self.data_dirs
             .iter()
@@ -725,6 +731,7 @@ impl BaseDirectories {
     /// Returns a preference ordered (preferred to less preferred) list of
     /// supplementary configuration directories (set by `XDG_CONFIG_DIRS`
     /// or default fallback, plus the prefix if configured).
+    #[must_use]
     pub fn get_config_dirs(&self) -> Vec<PathBuf> {
         self.config_dirs
             .iter()
