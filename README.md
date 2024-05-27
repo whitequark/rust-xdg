@@ -17,7 +17,7 @@ Add the following to `Cargo.toml`:
 
 ```toml
 [dependencies]
-xdg = "^2.5"
+xdg = "^2.6"
 ```
 
 Examples
