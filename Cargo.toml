@@ -1,15 +1,15 @@
 [package]
 name = "xdg"
-version = "2.5.2"
+version = "2.6.0"
 description = "A library for storing and retrieving files according to XDG Base Directory specification"
 homepage = "https://github.com/whitequark/rust-xdg"
 repository = "https://github.com/whitequark/rust-xdg"
 documentation = "https://docs.rs/xdg/"
 readme = "README.md"
-edition = "2018"
-rust-version = "1.40.0" # Also update in .github/workflows/ci.yml
+edition = "2021"
+rust-version = "1.60.0" # Also update in .github/workflows/ci.yml
 categories = ["filesystem"]
-keywords = ["linux", "configuration"]
+keywords = ["linux", "configuration", "xdg"]
 license = "Apache-2.0 OR MIT"
 authors = [
     "Ben Longbons <b.r.longbons@gmail.com>",
