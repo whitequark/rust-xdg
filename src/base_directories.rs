@@ -115,7 +115,7 @@ pub struct Error {
 }
 
 impl Error {
-    fn new(kind: ErrorKind) -> Error {
+    const fn new(kind: ErrorKind) -> Error {
         Error { kind }
     }
 }
@@ -263,21 +263,21 @@ impl BaseDirectories {
         BaseDirectories::with_env(prefix, profile, &|name| env::var_os(name))
     }
 
-    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
-    where
-        P1: AsRef<Path>,
-        P2: AsRef<Path>,
-        T: Fn(&str) -> Option<OsString>,
-    {
+    fn with_env<P1, P2, T>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
+        where
+            P1: AsRef<Path>,
+            P2: AsRef<Path>,
+            T: ?Sized + Fn(&str) -> Option<OsString>,
+        {
         BaseDirectories::with_env_impl(prefix.as_ref(), profile.as_ref(), env_var)
     }
 
-    fn with_env_impl<T: ?Sized>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
-    where
-        T: Fn(&str) -> Option<OsString>,
-    {
+    fn with_env_impl<T>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
+        where
+            T: ?Sized + Fn(&str) -> Option<OsString>,
+        {
         fn abspath(path: OsString) -> Option<PathBuf> {
-            let path = PathBuf::from(path);
+            let path: PathBuf = PathBuf::from(path);
             if path.is_absolute() {
                 Some(path)
             } else {
@@ -286,7 +286,7 @@ impl BaseDirectories {
         }
 
         fn abspaths(paths: OsString) -> Option<Vec<PathBuf>> {
-            let paths = env::split_paths(&paths)
+            let paths: Vec<PathBuf> = env::split_paths(&paths)
                 .map(PathBuf::from)
                 .filter(|path| path.is_absolute())
                 .collect::<Vec<_>>();
@@ -300,7 +300,7 @@ impl BaseDirectories {
         // This crate only supports Unix, and the behavior of `std::env::home_dir()` is only
         // problematic on Windows.
         #[allow(deprecated)]
-        let home = std::env::home_dir();
+        let home: Option<PathBuf> = std::env::home_dir();
 
         let data_home = env_var("XDG_DATA_HOME")
             .and_then(abspath)
@@ -323,7 +323,7 @@ impl BaseDirectories {
             .unwrap_or(vec![PathBuf::from("/etc/xdg")]);
         let runtime_dir = env_var("XDG_RUNTIME_DIR").and_then(abspath); // optional
 
-        let prefix = PathBuf::from(prefix);
+        let prefix: PathBuf = PathBuf::from(prefix);
         BaseDirectories {
             user_prefix: prefix.join(profile),
             shared_prefix: prefix,
@@ -344,7 +344,7 @@ impl BaseDirectories {
             // do not allow recovery.
             fs::read_dir(runtime_dir)
                 .map_err(|e| Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e)))?;
-            let permissions = fs::metadata(runtime_dir)
+            let permissions: u32 = fs::metadata(runtime_dir)
                 .map_err(|e| Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e)))?
                 .permissions()
                 .mode();
