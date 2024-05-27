@@ -10,8 +10,7 @@ Currently, only [XDG Base Directory][basedir] specification is implemented.
 
 [basedir]: http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
-Installation
-------------
+## Installation
 
 Add the following to `Cargo.toml`:
 
@@ -20,13 +19,11 @@ Add the following to `Cargo.toml`:
 xdg = "^2.6"
 ```
 
-Examples
---------
+## Examples
 
 See [documentation](https://whitequark.github.io/rust-xdg/xdg/).
 
-License
--------
+## License
 
 rust-xdg is distributed under the terms of both the MIT license
 and the Apache License (Version 2.0).
