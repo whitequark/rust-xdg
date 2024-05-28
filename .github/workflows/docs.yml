@@ -22,7 +22,7 @@ jobs:
           echo '<meta http-equiv="refresh" content="0;url=xdg/index.html">' > _site/index.html
           mv target/doc/* _site
 
-      - uses: actions/upload-pages-artifact@v2
+      - uses: actions/upload-pages-artifact@v3
 
   deploy:
     needs: build
@@ -39,4 +39,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
