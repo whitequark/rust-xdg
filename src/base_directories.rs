@@ -115,7 +115,7 @@ pub struct Error {
 }
 
 impl Error {
-    fn new(kind: ErrorKind) -> Error {
+    const fn new(kind: ErrorKind) -> Error {
         Error { kind }
     }
 }
@@ -263,21 +263,21 @@ impl BaseDirectories {
         BaseDirectories::with_env(prefix, profile, &|name| env::var_os(name))
     }
 
-    fn with_env<P1, P2, T: ?Sized>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
-    where
-        P1: AsRef<Path>,
-        P2: AsRef<Path>,
-        T: Fn(&str) -> Option<OsString>,
-    {
+    fn with_env<P1, P2, T>(prefix: P1, profile: P2, env_var: &T) -> BaseDirectories
+        where
+            P1: AsRef<Path>,
+            P2: AsRef<Path>,
+            T: ?Sized + Fn(&str) -> Option<OsString>,
+        {
         BaseDirectories::with_env_impl(prefix.as_ref(), profile.as_ref(), env_var)
     }
 
-    fn with_env_impl<T: ?Sized>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
-    where
-        T: Fn(&str) -> Option<OsString>,
-    {
+    fn with_env_impl<T>(prefix: &Path, profile: &Path, env_var: &T) -> BaseDirectories
+        where
+            T: ?Sized + Fn(&str) -> Option<OsString>,
+        {
         fn abspath(path: OsString) -> Option<PathBuf> {
-            let path = PathBuf::from(path);
+            let path: PathBuf = PathBuf::from(path);
             if path.is_absolute() {
                 Some(path)
             } else {
@@ -286,7 +286,7 @@ impl BaseDirectories {
         }
 
         fn abspaths(paths: OsString) -> Option<Vec<PathBuf>> {
-            let paths = env::split_paths(&paths)
+            let paths: Vec<PathBuf> = env::split_paths(&paths)
                 .map(PathBuf::from)
                 .filter(|path| path.is_absolute())
                 .collect::<Vec<_>>();
@@ -300,7 +300,7 @@ impl BaseDirectories {
         // This crate only supports Unix, and the behavior of `std::env::home_dir()` is only
         // problematic on Windows.
         #[allow(deprecated)]
-        let home = std::env::home_dir();
+        let home: Option<PathBuf> = std::env::home_dir();
 
         let data_home = env_var("XDG_DATA_HOME")
             .and_then(abspath)
@@ -323,7 +323,7 @@ impl BaseDirectories {
             .unwrap_or(vec![PathBuf::from("/etc/xdg")]);
         let runtime_dir = env_var("XDG_RUNTIME_DIR").and_then(abspath); // optional
 
-        let prefix = PathBuf::from(prefix);
+        let prefix: PathBuf = PathBuf::from(prefix);
         BaseDirectories {
             user_prefix: prefix.join(profile),
             shared_prefix: prefix,
@@ -344,7 +344,7 @@ impl BaseDirectories {
             // do not allow recovery.
             fs::read_dir(runtime_dir)
                 .map_err(|e| Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e)))?;
-            let permissions = fs::metadata(runtime_dir)
+            let permissions: u32 = fs::metadata(runtime_dir)
                 .map_err(|e| Error::new(XdgRuntimeDirInaccessible(runtime_dir.clone(), e)))?
                 .permissions()
                 .mode();
@@ -448,7 +448,7 @@ impl BaseDirectories {
     /// `XDG_CONFIG_DIRS`.
     pub fn find_config_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -462,7 +462,7 @@ impl BaseDirectories {
     /// to highest.
     pub fn find_config_files<P: AsRef<Path>>(&self, path: P) -> FileFindIterator {
         FileFindIterator::new(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -475,7 +475,7 @@ impl BaseDirectories {
     /// `XDG_DATA_DIRS`.
     pub fn find_data_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -489,7 +489,7 @@ impl BaseDirectories {
     /// to highest.
     pub fn find_data_files<P: AsRef<Path>>(&self, path: P) -> FileFindIterator {
         FileFindIterator::new(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -501,7 +501,7 @@ impl BaseDirectories {
     /// cache file, or `None`. Searches `XDG_CACHE_HOME`.
     pub fn find_cache_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.cache_home.as_ref().map(|home| home.as_path()),
+            self.cache_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -513,7 +513,7 @@ impl BaseDirectories {
     /// application state file, or `None`. Searches `XDG_STATE_HOME`.
     pub fn find_state_file<P: AsRef<Path>>(&self, path: P) -> Option<PathBuf> {
         read_file(
-            self.state_home.as_ref().map(|home| home.as_path()),
+            self.state_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -541,7 +541,7 @@ impl BaseDirectories {
     /// if that is not possible, an error is returned.
     pub fn create_config_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -550,7 +550,7 @@ impl BaseDirectories {
     /// but for a data directory in `XDG_DATA_HOME`.
     pub fn create_data_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -559,7 +559,7 @@ impl BaseDirectories {
     /// but for a cache directory in `XDG_CACHE_HOME`.
     pub fn create_cache_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.cache_home.as_ref().map(|home| home.as_path()),
+            self.cache_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -568,7 +568,7 @@ impl BaseDirectories {
     /// but for an application state directory in `XDG_STATE_HOME`.
     pub fn create_state_directory<P: AsRef<Path>>(&self, path: P) -> io::Result<PathBuf> {
         create_directory(
-            self.state_home.as_ref().map(|home| home.as_path()),
+            self.state_home.as_deref(),
             &self.user_prefix.join(path),
         )
     }
@@ -588,7 +588,7 @@ impl BaseDirectories {
     /// `XDG_CONFIG_DIRS`.
     pub fn list_config_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -600,7 +600,7 @@ impl BaseDirectories {
     /// only the first occurence of every distinct filename is returned.
     pub fn list_config_files_once<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files_once(
-            self.config_home.as_ref().map(|home| home.as_path()),
+            self.config_home.as_deref(),
             &self.config_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -613,7 +613,7 @@ impl BaseDirectories {
     /// `XDG_DATA_DIRS`.
     pub fn list_data_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -625,7 +625,7 @@ impl BaseDirectories {
     /// only the first occurence of every distinct filename is returned.
     pub fn list_data_files_once<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files_once(
-            self.data_home.as_ref().map(|home| home.as_path()),
+            self.data_home.as_deref(),
             &self.data_dirs,
             &self.user_prefix,
             &self.shared_prefix,
@@ -637,7 +637,7 @@ impl BaseDirectories {
     /// in directories with path `path` in `XDG_CACHE_HOME`.
     pub fn list_cache_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.cache_home.as_ref().map(|home| home.as_path()),
+            self.cache_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,
@@ -649,7 +649,7 @@ impl BaseDirectories {
     /// in directories with path `path` in `XDG_STATE_HOME`.
     pub fn list_state_files<P: AsRef<Path>>(&self, path: P) -> Vec<PathBuf> {
         list_files(
-            self.state_home.as_ref().map(|home| home.as_path()),
+            self.state_home.as_deref(),
             &Vec::new(),
             &self.user_prefix,
             &self.shared_prefix,

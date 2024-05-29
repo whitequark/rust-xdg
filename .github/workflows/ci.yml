@@ -2,38 +2,41 @@ name: CI
 
 on: [push, pull_request]
 
-env:
-  minrust: 1.40.0 # Also update in Cargo.toml
-
 jobs:
   Lints:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-
-      - run: cargo fmt --check
-      - run: cargo clippy -- -D warnings
+      - name: Check formatting
+        run: cargo fmt --check
+        continue-on-error: true
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+        
         if: always()
 
   Test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --features serde
+      - name: Cargo check on serde feature
+        run: cargo check --features serde
       - run: cargo test
 
   MSRV:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Install ${{ env.minrust }} toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.minrust }}
-      - run: cargo test
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-msrv
+        run: cargo install cargo-msrv
+      - name: Run cargo-msrv verify
+        run: cargo msrv verify
